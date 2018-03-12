@@ -13,7 +13,6 @@ elif sys.platform.startswith("win"):
 else:
     raise RuntimeError("unrecognized platform %s"%sys.platform)
 
-
 mjlib = cdll.LoadLibrary(libfile)
 
 

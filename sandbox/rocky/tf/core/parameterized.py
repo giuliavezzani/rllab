@@ -48,6 +48,7 @@ class Parameterized(object):
         return self._cached_param_dtypes[tag_tuple]
 
     def get_param_shapes(self, **tags):
+
         tag_tuple = tuple(sorted(list(tags.items()), key=lambda x: x[0]))
         if tag_tuple not in self._cached_param_shapes:
             params = self.get_params(**tags)
@@ -88,13 +89,17 @@ class Parameterized(object):
         d = Serializable.__getstate__(self)
         global load_params
         if load_params:
+        #if load_params and  not d['__args'][2]=='q_function':
             d["params"] = self.get_param_values()
         return d
 
     def __setstate__(self, d):
         Serializable.__setstate__(self, d)
         global load_params
-        if load_params:
+        #import IPython
+        #IPython.embed()
+        if load_params and  not d['__args'][3]=='q_function':
+        #if load_params:
             tf.get_default_session().run(tf.variables_initializer(self.get_params()))
             self.set_param_values(d["params"])
 
