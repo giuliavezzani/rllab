@@ -43,6 +43,7 @@ class MujocoEnv(Env):
         # compile template
         print('file path', file_path)
         print('FILE', self.__class__.FILE)
+
         if file_path is None:
             if self.__class__.FILE is None:
                 raise "Mujoco file not specified"
