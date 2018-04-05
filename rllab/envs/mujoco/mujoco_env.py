@@ -41,8 +41,6 @@ class MujocoEnv(Env):
                        'proportional to the action bounds')
     def __init__(self, action_noise=0.0, file_path=None, template_args=None):
         # compile template
-        print('file path', file_path)
-        print('FILE', self.__class__.FILE)
 
         if file_path is None:
             if self.__class__.FILE is None:
