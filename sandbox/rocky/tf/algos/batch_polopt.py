@@ -1,4 +1,6 @@
 import time
+import pickle
+import numpy as np
 from rllab.algos.base import RLAlgorithm
 import rllab.misc.logger as logger
 from sandbox.rocky.tf.policies.base import Policy
@@ -36,6 +38,10 @@ class BatchPolopt(RLAlgorithm):
             sampler_cls=None,
             sampler_args=None,
             force_batch_sampler=False,
+            log_dir=None,
+            gap=1,
+            density_model=None,
+            args_density_model= None,
             **kwargs
     ):
         """
@@ -76,6 +82,14 @@ class BatchPolopt(RLAlgorithm):
         self.store_paths = store_paths
         self.whole_paths = whole_paths
         self.fixed_horizon = fixed_horizon
+        self.log_dir = log_dir
+        self.gap = gap
+        self.density_model  = density_model
+        self.args_density_model  = args_density_model
+
+        if self.store_paths:
+            logger.set_snapshot_dir(self.log_dir)
+
         if sampler_cls is None:
             if self.policy.vectorized and not force_batch_sampler:
                 sampler_cls = VectorizedSampler
@@ -84,6 +98,7 @@ class BatchPolopt(RLAlgorithm):
         if sampler_args is None:
             sampler_args = dict()
         self.sampler = sampler_cls(self, **sampler_args)
+
         self.init_opt()
 
     def start_worker(self):
@@ -92,8 +107,8 @@ class BatchPolopt(RLAlgorithm):
     def shutdown_worker(self):
         self.sampler.shutdown_worker()
 
-    def obtain_samples(self, itr):
-        return self.sampler.obtain_samples(itr)
+    def obtain_samples(self, itr, density_model):
+        return self.sampler.obtain_samples(itr, density_model)
 
     def process_samples(self, itr, paths):
         return self.sampler.process_samples(itr, paths)
@@ -103,24 +118,35 @@ class BatchPolopt(RLAlgorithm):
         if sess is None:
             sess = tf.Session()
             sess.__enter__()
-            
+
         sess.run(tf.global_variables_initializer())
         self.start_worker()
         start_time = time.time()
+        observations = []
+        samples_data_coll = []
         for itr in range(self.start_itr, self.n_itr):
             itr_start_time = time.time()
             with logger.prefix('itr #%d | ' % itr):
                 logger.log("Obtaining samples...")
-                paths = self.obtain_samples(itr)
+
+                paths = self.obtain_samples(itr=itr, density_model=self.density_model)
                 logger.log("Processing samples...")
                 samples_data = self.process_samples(itr, paths)
                 logger.log("Logging diagnostics...")
                 self.log_diagnostics(paths)
                 logger.log("Optimizing policy...")
                 self.optimize_policy(itr, samples_data)
+
+                ### Train the density model every iteration
+                samples_data_coll.append(samples_data['observations'])
+                self.args_density_model.obs = samples_data_coll
+
+                self.density_model.train(self.args_density_model)
+
                 logger.log("Saving snapshot...")
                 params = self.get_itr_snapshot(itr, samples_data)  # , **kwargs)
                 if self.store_paths:
+                    logger.log("Saving params...")
                     params["paths"] = samples_data["paths"]
                 logger.save_itr_params(itr, params)
                 logger.log("Saved")
@@ -132,6 +158,11 @@ class BatchPolopt(RLAlgorithm):
                     if self.pause_for_plot:
                         input("Plotting evaluation run: Press Enter to "
                               "continue...")
+
+                if np.mod(itr, self.gap) == 0:
+                    observations.append(samples_data['observations'])
+                    pickle.dump(observations, open(self.log_dir+'/observations.pkl', 'wb'))
+
         self.shutdown_worker()
         if created_session:
             sess.close()
@@ -157,4 +188,3 @@ class BatchPolopt(RLAlgorithm):
 
     def optimize_policy(self, itr, samples_data):
         raise NotImplementedError
-

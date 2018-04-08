@@ -36,7 +36,7 @@ class VectorizedSampler(BaseSampler):
     def shutdown_worker(self):
         self.vec_env.terminate()
 
-    def obtain_samples(self, itr):
+    def obtain_samples(self, itr, density_model):
         logger.log("Obtaining samples for iteration %d..." % itr)
         paths = []
         n_samples = 0
@@ -60,6 +60,13 @@ class VectorizedSampler(BaseSampler):
             t = time.time()
             next_obses, rewards, dones, env_infos = self.vec_env.step(actions)
             env_time += time.time() - t
+
+            ### Rewards for the point mass in exploration are 0.0
+            curr_noise = np.random.normal(size=(len(next_obses), density_model.hidden_size))
+            reward = density_model.sess.run(density_model.loss,
+                    {density_model._x: next_obses,  density_model._noise: curr_noise})
+
+            print('reward', reward)
 
             t = time.time()
 
