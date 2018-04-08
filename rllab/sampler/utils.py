@@ -11,7 +11,7 @@ def rollout(env, agent, task, max_path_length=np.inf, animated=False, speedup=1,
     agent_infos = []
     env_infos = []
     images = []
-    o = env.reset(reset_args=task)
+    o = env.reset()
     agent.reset()
     path_length = 0
     if animated:
@@ -35,10 +35,7 @@ def rollout(env, agent, task, max_path_length=np.inf, animated=False, speedup=1,
         o = next_o
         if animated:
             env.render()
-            data, width, height = env.get_viewer().get_image()
-            images.append(np.fromstring(data, dtype='uint8').reshape(height, width, 3)[::-1,:,:])
-            timestep = 0.05
-            time.sleep(timestep / speedup)
+            
     #if animated and not always_return_paths:
     #    return
 

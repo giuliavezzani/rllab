@@ -42,6 +42,7 @@ class BatchPolopt(RLAlgorithm):
             gap=1,
             density_model=None,
             args_density_model= None,
+            reward_type = 'std',
             **kwargs
     ):
         """
@@ -86,6 +87,7 @@ class BatchPolopt(RLAlgorithm):
         self.gap = gap
         self.density_model  = density_model
         self.args_density_model  = args_density_model
+        self.reward_type = reward_type
 
         if self.store_paths:
             logger.set_snapshot_dir(self.log_dir)
@@ -107,8 +109,8 @@ class BatchPolopt(RLAlgorithm):
     def shutdown_worker(self):
         self.sampler.shutdown_worker()
 
-    def obtain_samples(self, itr, density_model):
-        return self.sampler.obtain_samples(itr, density_model)
+    def obtain_samples(self, itr, density_model, reward_type):
+        return self.sampler.obtain_samples(itr, density_model, reward_type)
 
     def process_samples(self, itr, paths):
         return self.sampler.process_samples(itr, paths)
@@ -129,7 +131,7 @@ class BatchPolopt(RLAlgorithm):
             with logger.prefix('itr #%d | ' % itr):
                 logger.log("Obtaining samples...")
 
-                paths = self.obtain_samples(itr=itr, density_model=self.density_model)
+                paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type)
                 logger.log("Processing samples...")
                 samples_data = self.process_samples(itr, paths)
                 logger.log("Logging diagnostics...")
@@ -138,10 +140,15 @@ class BatchPolopt(RLAlgorithm):
                 self.optimize_policy(itr, samples_data)
 
                 ### Train the density model every iteration
-                samples_data_coll.append(samples_data['observations'])
-                self.args_density_model.obs = samples_data_coll
+                if self.reward_type == 'state_entropy':
+                    print('Training density model')
+                    samples_data_coll.append(samples_data['observations'])
+                    self.args_density_model.obs = samples_data_coll
+                    self.args_density_model.itr = itr
 
-                self.density_model.train(self.args_density_model)
+                    self.density_model.train(self.args_density_model)
+                    print('Density model trained')
+
 
                 logger.log("Saving snapshot...")
                 params = self.get_itr_snapshot(itr, samples_data)  # , **kwargs)

@@ -36,7 +36,7 @@ class VectorizedSampler(BaseSampler):
     def shutdown_worker(self):
         self.vec_env.terminate()
 
-    def obtain_samples(self, itr, density_model):
+    def obtain_samples(self, itr, density_model, reward_type):
         logger.log("Obtaining samples for iteration %d..." % itr)
         paths = []
         n_samples = 0
@@ -62,11 +62,23 @@ class VectorizedSampler(BaseSampler):
             env_time += time.time() - t
 
             ### Rewards for the point mass in exploration are 0.0
-            curr_noise = np.random.normal(size=(len(next_obses), density_model.hidden_size))
-            reward = density_model.sess.run(density_model.loss,
-                    {density_model._x: next_obses,  density_model._noise: curr_noise})
 
-            print('reward', reward)
+            if reward_type == 'state_entropy':
+                #import IPython
+                #IPython.embed()
+                for l in range(len(next_obses)):
+                    curr_noise = np.random.normal(size=(1, density_model.hidden_size))
+                    rewards[l] = density_model.sess.run(density_model.loss,
+                        {density_model._x: next_obses[l].reshape(1, next_obses[l].shape[0]),  density_model._noise: curr_noise})
+
+            elif reward_type == 'policy_entropy':
+                for l in range(len(next_obses)):
+                    rewards[l] = -np.log(policy.get_prob(actions[l], agent_infos['mean'][l], agent_infos['log_std'][l]))
+            else:
+
+                for l in range(len(next_obses)):
+                    rewards[l] =  -np.linalg.norm(next_obses[l][0:2] - np.array([-1.5, -1.5]))
+            #print('reward', rewards)
 
             t = time.time()
 

@@ -170,6 +170,11 @@ class GaussianMLPPolicy(StochasticPolicy, LayersPowered, Serializable):
         actions = rnd * np.exp(log_stds) + means
         return actions, dict(mean=means, log_std=log_stds)
 
+    def get_prob(self, action, mean, log_std):
+        from scipy.stats import multivariate_normal
+        var = multivariate_normal(mean=mean, cov=np.exp(log_std**2))
+        return var.pdf(action)
+
     def get_reparam_action_sym(self, obs_var, action_var, old_dist_info_vars):
         """
         Given observations, old actions, and distribution of old actions, return a symbolically reparameterized
