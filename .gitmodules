@@ -1,0 +1,3 @@
+[submodule "sandbox/vime"]
+	path = sandbox/vime
+	url = https://github.com/openai/vime.git

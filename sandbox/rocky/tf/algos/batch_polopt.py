@@ -43,6 +43,7 @@ class BatchPolopt(RLAlgorithm):
             density_model=None,
             args_density_model= None,
             reward_type = 'std',
+            name_density_model = 'vae',
             **kwargs
     ):
         """
@@ -87,6 +88,7 @@ class BatchPolopt(RLAlgorithm):
         self.gap = gap
         self.density_model  = density_model
         self.args_density_model  = args_density_model
+        self.name_density_model  = name_density_model
         self.reward_type = reward_type
 
         if self.store_paths:
@@ -109,8 +111,8 @@ class BatchPolopt(RLAlgorithm):
     def shutdown_worker(self):
         self.sampler.shutdown_worker()
 
-    def obtain_samples(self, itr, density_model, reward_type):
-        return self.sampler.obtain_samples(itr, density_model, reward_type)
+    def obtain_samples(self, itr, density_model, reward_type, name_density_model):
+        return self.sampler.obtain_samples(itr, density_model, reward_type, name_density_model)
 
     def process_samples(self, itr, paths):
         return self.sampler.process_samples(itr, paths)
@@ -131,7 +133,7 @@ class BatchPolopt(RLAlgorithm):
             with logger.prefix('itr #%d | ' % itr):
                 logger.log("Obtaining samples...")
 
-                paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type)
+                paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model)
                 logger.log("Processing samples...")
                 samples_data = self.process_samples(itr, paths)
                 logger.log("Logging diagnostics...")

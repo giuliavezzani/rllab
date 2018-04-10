@@ -3,7 +3,7 @@ from rllab.misc import tensor_utils
 import time
 
 
-def rollout(env, agent, task, max_path_length=np.inf, animated=False, speedup=1,
+def rollout(env, agent,  max_path_length=np.inf, animated=False, speedup=1,
             always_return_paths=False):
     observations = []
     actions = []
@@ -35,7 +35,7 @@ def rollout(env, agent, task, max_path_length=np.inf, animated=False, speedup=1,
         o = next_o
         if animated:
             env.render()
-            
+
     #if animated and not always_return_paths:
     #    return
 
@@ -43,7 +43,7 @@ def rollout(env, agent, task, max_path_length=np.inf, animated=False, speedup=1,
         observations=tensor_utils.stack_tensor_list(observations),
         actions=tensor_utils.stack_tensor_list(actions),
         rewards=tensor_utils.stack_tensor_list(rewards),
-        images=tensor_utils.stack_tensor_list(images)
-        #agent_infos=tensor_utils.stack_tensor_dict_list(agent_infos),
-        #env_infos=tensor_utils.stack_tensor_dict_list(env_infos),
+        images=tensor_utils.stack_tensor_list(images),
+        agent_infos=tensor_utils.stack_tensor_dict_list(agent_infos),
+        env_infos=tensor_utils.stack_tensor_dict_list(env_infos),
     )

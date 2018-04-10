@@ -36,7 +36,7 @@ class VectorizedSampler(BaseSampler):
     def shutdown_worker(self):
         self.vec_env.terminate()
 
-    def obtain_samples(self, itr, density_model, reward_type):
+    def obtain_samples(self, itr, density_model, reward_type, name_density_model):
         logger.log("Obtaining samples for iteration %d..." % itr)
         paths = []
         n_samples = 0
@@ -67,9 +67,11 @@ class VectorizedSampler(BaseSampler):
                 #import IPython
                 #IPython.embed()
                 for l in range(len(next_obses)):
-                    curr_noise = np.random.normal(size=(1, density_model.hidden_size))
-                    rewards[l] = density_model.sess.run(density_model.loss,
-                        {density_model._x: next_obses[l].reshape(1, next_obses[l].shape[0]),  density_model._noise: curr_noise})
+                    if name_density_model == 'vae':
+                        curr_noise = np.random.normal(size=(1, density_model.hidden_size))
+                        rewards[l] = density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise)
+                    #else:
+                        ##rewards[l] = density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]))
 
             elif reward_type == 'policy_entropy':
                 for l in range(len(next_obses)):

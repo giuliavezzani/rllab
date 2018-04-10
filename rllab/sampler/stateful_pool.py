@@ -117,6 +117,7 @@ class StatefulPool(object):
         :param threshold:
         :return:
         """
+        
         if args is None:
             args = tuple()
         if self.pool:
@@ -147,6 +148,7 @@ class StatefulPool(object):
             if show_prog_bar:
                 pbar = ProgBarCounter(threshold)
             while count < threshold:
+
                 result, inc = collect_once(self.G, *args)
                 results.append(result)
                 count += inc
