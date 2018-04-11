@@ -148,7 +148,9 @@ class BatchPolopt(RLAlgorithm):
                     self.args_density_model.obs = samples_data_coll
                     self.args_density_model.itr = itr
 
-                    self.density_model.train(self.args_density_model)
+                    ## Let's try to reinitialize everytime
+                    self.density_model.init_opt()
+                    self.density_model.train(self.args_density_model, itr)
                     print('Density model trained')
 
 

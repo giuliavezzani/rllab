@@ -76,10 +76,35 @@ class VectorizedSampler(BaseSampler):
             elif reward_type == 'policy_entropy':
                 for l in range(len(next_obses)):
                     rewards[l] = -np.log(policy.get_prob(actions[l], agent_infos['mean'][l], agent_infos['log_std'][l]))
-            else:
+            elif reward_type == 'discrete':
+                self._dim_space = 100
+                self._count_space = np.zeros(shape=(self._dim_space+1, self._dim_space+1))
 
                 for l in range(len(next_obses)):
-                    rewards[l] =  -np.linalg.norm(next_obses[l][0:2] - np.array([-1.5, -1.5]))
+
+                    for h in range(0, self._dim_space+1):
+                        for i in range(0, self._dim_space+1):
+
+                            if next_obses[l][0] == h and next_obses[l][1] == i:
+                                self._count_space[h,i] += 1
+
+                h_spec = np.zeros(len(next_obses))
+                i_spec = np.zeros(len(next_obses))
+                for h in range(0, self._dim_space+1):
+                    for i in range(0, self._dim_space+1):
+                        for l in range(len(next_obses)):
+                            if  next_obses[l][0] == h and  next_obses[l][1] == i:
+
+                                h_spec[l] = h
+                                i_spec[l] = i
+
+                for l in range(len(next_obses)):
+                    rewards[l] =  self._count_space[int(h_spec[l]), int(i_spec[l])]/( len(next_obses))
+
+
+            else:
+                for l in range(len(next_obses)):
+                    rewards[l] =  -np.linalg.norm(next_obses[l][0:2] - np.array([2.0, 2.0]))
             #print('reward', rewards)
 
             t = time.time()
