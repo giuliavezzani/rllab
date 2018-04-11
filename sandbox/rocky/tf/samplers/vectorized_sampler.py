@@ -77,7 +77,7 @@ class VectorizedSampler(BaseSampler):
                 for l in range(len(next_obses)):
                     rewards[l] = -np.log(policy.get_prob(actions[l], agent_infos['mean'][l], agent_infos['log_std'][l]))
             elif reward_type == 'discrete':
-                self._dim_space = 100
+                self._dim_space = 20
                 self._count_space = np.zeros(shape=(self._dim_space+1, self._dim_space+1))
 
                 for l in range(len(next_obses)):
@@ -99,7 +99,7 @@ class VectorizedSampler(BaseSampler):
                                 i_spec[l] = i
 
                 for l in range(len(next_obses)):
-                    rewards[l] =  self._count_space[int(h_spec[l]), int(i_spec[l])]/( len(next_obses))
+                    rewards[l] =  -self._count_space[int(h_spec[l]), int(i_spec[l])]/( len(next_obses))
 
 
             else:
