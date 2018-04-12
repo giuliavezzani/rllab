@@ -70,9 +70,8 @@ class VectorizedSampler(BaseSampler):
                     if name_density_model == 'vae':
                         curr_noise = np.random.normal(size=(1, density_model.hidden_size))
                         rewards[l] = density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise)
-                    #else:
-                        ##rewards[l] = density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]))
-
+                    else:
+                        rewards[l] = density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]))
             elif reward_type == 'policy_entropy':
                 for l in range(len(next_obses)):
                     rewards[l] = -np.log(policy.get_prob(actions[l], agent_infos['mean'][l], agent_infos['log_std'][l]))
@@ -141,6 +140,7 @@ class VectorizedSampler(BaseSampler):
                     ))
                     n_samples += len(running_paths[idx]["rewards"])
                     running_paths[idx] = None
+
             process_time += time.time() - t
             pbar.inc(len(obses))
             obses = next_obses

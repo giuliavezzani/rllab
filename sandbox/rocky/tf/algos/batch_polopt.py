@@ -127,6 +127,7 @@ class BatchPolopt(RLAlgorithm):
         self.start_worker()
         start_time = time.time()
         observations = []
+        rewards = []
         samples_data_coll = []
         for itr in range(self.start_itr, self.n_itr):
             itr_start_time = time.time()
@@ -153,7 +154,6 @@ class BatchPolopt(RLAlgorithm):
                     self.density_model.train(self.args_density_model, itr)
                     print('Density model trained')
 
-
                 logger.log("Saving snapshot...")
                 params = self.get_itr_snapshot(itr, samples_data)  # , **kwargs)
                 if self.store_paths:
@@ -173,6 +173,9 @@ class BatchPolopt(RLAlgorithm):
                 if np.mod(itr, self.gap) == 0:
                     observations.append(samples_data['observations'])
                     pickle.dump(observations, open(self.log_dir+'/observations.pkl', 'wb'))
+                    rewards.append(samples_data['rewards'])
+                    pickle.dump(rewards, open(self.log_dir+'/rewards.pkl', 'wb'))
+
 
         self.shutdown_worker()
         if created_session:

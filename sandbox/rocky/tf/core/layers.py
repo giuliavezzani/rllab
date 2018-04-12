@@ -398,6 +398,8 @@ class DenseLayer(Layer):
             # if the input has more than two dimensions, flatten it into a
             # batch of feature vectors.
             input = tf.reshape(input, tf.stack([tf.shape(input)[0], -1]))
+
+
         activation = tf.matmul(input, self.W)
         if self.b is not None:
             activation = activation + tf.expand_dims(self.b, 0)
