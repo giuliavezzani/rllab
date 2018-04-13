@@ -66,6 +66,8 @@ def to_onehot(ind, dim):
 
 
 def to_onehot_n(inds, dim):
+    import IPython
+    IPython.embed()
     ret = np.zeros((len(inds), dim))
     ret[np.arange(len(inds)), inds] = 1
     return ret

@@ -36,87 +36,112 @@ class VectorizedSampler(BaseSampler):
     def shutdown_worker(self):
         self.vec_env.terminate()
 
-    def obtain_samples(self, itr, density_model, reward_type, name_density_model):
+    def obtain_samples(self, itr, density_model, reward_type, name_density_model, reward=False):
         logger.log("Obtaining samples for iteration %d..." % itr)
         paths = []
         n_samples = 0
         obses = self.vec_env.reset()
-        dones = np.asarray([True] * self.vec_env.num_envs)
+        self.dones = np.asarray([True] * self.vec_env.num_envs)
         running_paths = [None] * self.vec_env.num_envs
 
         pbar = ProgBarCounter(self.algo.batch_size)
         policy_time = 0
         env_time = 0
         process_time = 0
+        count = 0
+
+        if reward == False:
+            self.obses = []
 
         policy = self.algo.policy
         import time
         while n_samples < self.algo.batch_size:
+
             t = time.time()
-            policy.reset(dones)
+            policy.reset(self.dones)
             actions, agent_infos = policy.get_actions(obses)
 
             policy_time += time.time() - t
             t = time.time()
-            next_obses, rewards, dones, env_infos = self.vec_env.step(actions)
-            env_time += time.time() - t
 
-            ### Rewards for the point mass in exploration are 0.0
-
+            #### Situation is different if you we use state entropy
             if reward_type == 'state_entropy':
-                #import IPython
-                #IPython.embed()
-                for l in range(len(next_obses)):
-                    if name_density_model == 'vae':
-                        curr_noise = np.random.normal(size=(1, density_model.hidden_size))
-                        rewards[l] = density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise)
-                    else:
-                        rewards[l] = density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]))
-            elif reward_type == 'policy_entropy':
-                for l in range(len(next_obses)):
-                    rewards[l] = -np.log(policy.get_prob(actions[l], agent_infos['mean'][l], agent_infos['log_std'][l]))
-            elif reward_type == 'discrete':
-                self._dim_space = 20
-                self._count_space = np.zeros(shape=(self._dim_space+1, self._dim_space+1))
+                # At first we collect the data just to get observations
+                if reward == False:
+                    self.next_obses, rewards, self.dones, self.env_info = self.vec_env.step(actions)
+                    env_time += time.time() - t
 
-                for l in range(len(next_obses)):
+                    self.obses.append(self.next_obses)
+                    ## Here the function return the paths directly
+                else:
+                    ## Uses the observations and everything collected when reward == False
+                    env_time += time.time() - t
+                    rewards = np.zeros(len(self.next_obses))
 
-                    for h in range(0, self._dim_space+1):
-                        for i in range(0, self._dim_space+1):
 
-                            if next_obses[l][0] == h and next_obses[l][1] == i:
-                                self._count_space[h,i] += 1
+                    ## Compute the rewards with the trained vae
+                    for l in range(len(self.obses[count])):
+                        if name_density_model == 'vae':
+                            curr_noise = np.random.normal(size=(1, density_model.hidden_size))
+                            rewards[l] = density_model.get_density(self.obses[count][l].reshape(1, self.obses[count][l].shape[0]), curr_noise)
+                        else:
+                            rewards[l] = -density_model.get_density(self.obses[count][l].reshape(1, self.obses[count][l].shape[0]))
 
-                h_spec = np.zeros(len(next_obses))
-                i_spec = np.zeros(len(next_obses))
-                for h in range(0, self._dim_space+1):
-                    for i in range(0, self._dim_space+1):
-                        for l in range(len(next_obses)):
-                            if  next_obses[l][0] == h and  next_obses[l][1] == i:
-
-                                h_spec[l] = h
-                                i_spec[l] = i
-
-                for l in range(len(next_obses)):
-                    rewards[l] =  -self._count_space[int(h_spec[l]), int(i_spec[l])]/( len(next_obses))
-
+                    t = time.time()
+                    count += 1
+                    #import IPython
+                    #IPython.embed()
 
             else:
-                for l in range(len(next_obses)):
-                    rewards[l] =  -np.linalg.norm(next_obses[l][0:2] - np.array([2.0, 2.0]))
-            #print('reward', rewards)
+                ### Here is everything regular
+                self.next_obses, rewards, self.dones, self.env_info = self.vec_env.step(actions)
+                env_time += time.time() - t
+
+                if reward_type == 'policy_entropy':
+                    for l in range(len(self.next_obses)):
+                        rewards[l] = -np.log(policy.get_prob(actions[l], agent_infos['mean'][l], agent_infos['log_std'][l]))
+                elif reward_type == 'discrete':
+                    self._dim_space = 20
+                    self._count_space = np.zeros(shape=(self._dim_space+1, self._dim_space+1))
+
+                    for l in range(len(self.next_obses)):
+
+                        for h in range(0, self._dim_space+1):
+                            for i in range(0, self._dim_space+1):
+
+                                if self.next_obses[l][0] == h and self.next_obses[l][1] == i:
+                                    self._count_space[h,i] += 1
+
+                    h_spec = np.zeros(len(self.next_obses))
+                    i_spec = np.zeros(len(self.next_obses))
+                    for h in range(0, self._dim_space+1):
+                        for i in range(0, self._dim_space+1):
+                            for l in range(len(self.next_obses)):
+                                if  self.next_obses[l][0] == h and  self.next_obses[l][1] == i:
+
+                                    h_spec[l] = h
+                                    i_spec[l] = i
+
+                    for l in range(len(self.next_obses)):
+                        rewards[l] =  -self._count_space[int(h_spec[l]), int(i_spec[l])]/( len(self.next_obses))
+
+
+                else:
+                    for l in range(len(self.next_obses)):
+                        rewards[l] =  -np.linalg.norm(self.next_obses[l][0:2] - np.array([2.0, 2.0]))
+                #print('reward', rewards)
 
             t = time.time()
-
+            #Return everything
             agent_infos = tensor_utils.split_tensor_dict_list(agent_infos)
-            env_infos = tensor_utils.split_tensor_dict_list(env_infos)
-            if env_infos is None:
-                env_infos = [dict() for _ in range(self.vec_env.num_envs)]
+            self.env_infos = tensor_utils.split_tensor_dict_list(self.env_info)
+            if self.env_infos is None:
+                self.env_infos = [dict() for _ in range(self.vec_env.num_envs)]
             if agent_infos is None:
                 agent_infos = [dict() for _ in range(self.vec_env.num_envs)]
             for idx, observation, action, reward, env_info, agent_info, done in zip(itertools.count(), obses, actions,
-                                                                                    rewards, env_infos, agent_infos,
-                                                                                    dones):
+                                                                                    rewards, self.env_infos, agent_infos,
+                                                                                    self.dones):
                 if running_paths[idx] is None:
                     running_paths[idx] = dict(
                         observations=[],
@@ -143,7 +168,7 @@ class VectorizedSampler(BaseSampler):
 
             process_time += time.time() - t
             pbar.inc(len(obses))
-            obses = next_obses
+            obses = self.next_obses
 
         pbar.stop()
 

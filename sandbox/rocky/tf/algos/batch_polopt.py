@@ -111,8 +111,8 @@ class BatchPolopt(RLAlgorithm):
     def shutdown_worker(self):
         self.sampler.shutdown_worker()
 
-    def obtain_samples(self, itr, density_model, reward_type, name_density_model):
-        return self.sampler.obtain_samples(itr, density_model, reward_type, name_density_model)
+    def obtain_samples(self, itr, density_model, reward_type, name_density_model, reward):
+        return self.sampler.obtain_samples(itr, density_model, reward_type, name_density_model, reward)
 
     def process_samples(self, itr, paths):
         return self.sampler.process_samples(itr, paths)
@@ -130,17 +130,18 @@ class BatchPolopt(RLAlgorithm):
         rewards = []
         samples_data_coll = []
         for itr in range(self.start_itr, self.n_itr):
+            if self.args_density_model.use_old_data == False:
+                samples_data_coll = []
+
             itr_start_time = time.time()
             with logger.prefix('itr #%d | ' % itr):
                 logger.log("Obtaining samples...")
 
-                paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model)
+                paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, reward=False)
                 logger.log("Processing samples...")
                 samples_data = self.process_samples(itr, paths)
                 logger.log("Logging diagnostics...")
                 self.log_diagnostics(paths)
-                logger.log("Optimizing policy...")
-                self.optimize_policy(itr, samples_data)
 
                 ### Train the density model every iteration
                 if self.reward_type == 'state_entropy':
@@ -153,6 +154,17 @@ class BatchPolopt(RLAlgorithm):
                     self.density_model.init_opt()
                     self.density_model.train(self.args_density_model, itr)
                     print('Density model trained')
+
+                ### we need the vae training before to get the new rewards
+                paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, reward=True)
+                logger.log("Processing samples...")
+                samples_data = self.process_samples(itr, paths)
+
+                logger.log("Optimizing policy...")
+                self.optimize_policy(itr, samples_data)
+
+
+
 
                 logger.log("Saving snapshot...")
                 params = self.get_itr_snapshot(itr, samples_data)  # , **kwargs)
