@@ -40,7 +40,8 @@ class VectorizedSampler(BaseSampler):
         logger.log("Obtaining samples for iteration %d..." % itr)
         paths = []
         n_samples = 0
-        obses = self.vec_env.reset()
+        if reward == False:
+            self.obses = self.vec_env.reset()
         self.dones = np.asarray([True] * self.vec_env.num_envs)
         running_paths = [None] * self.vec_env.num_envs
 
@@ -51,15 +52,23 @@ class VectorizedSampler(BaseSampler):
         count = 0
 
         if reward == False:
-            self.obses = []
+            self.obses_coll = []
+            self.dones_coll = []
+            self.actions_coll = []
+            self.obses_coll = []
+            self.env_infos_coll = []
+            self.agent_infos_coll = []
 
         policy = self.algo.policy
         import time
         while n_samples < self.algo.batch_size:
 
             t = time.time()
-            policy.reset(self.dones)
-            actions, agent_infos = policy.get_actions(obses)
+            if reward == False:
+                policy.reset(self.dones)
+                self.actions, self.agent_info = policy.get_actions(self.obses)
+                self.actions_coll.append(self.actions)
+                #self.agent_infos_coll.append(self.agent_info)
 
             policy_time += time.time() - t
             t = time.time()
@@ -68,10 +77,12 @@ class VectorizedSampler(BaseSampler):
             if reward_type == 'state_entropy':
                 # At first we collect the data just to get observations
                 if reward == False:
-                    self.next_obses, rewards, self.dones, self.env_info = self.vec_env.step(actions)
+                    self.next_obses, rewards, self.dones, self.env_info = self.vec_env.step(self.actions)
                     env_time += time.time() - t
 
-                    self.obses.append(self.next_obses)
+                    self.obses_coll.append(self.next_obses)
+                    self.dones_coll.append(self.dones)
+                    #self.env_infos_coll.append(self.env_info)
                     ## Here the function return the paths directly
                 else:
                     ## Uses the observations and everything collected when reward == False
@@ -80,26 +91,31 @@ class VectorizedSampler(BaseSampler):
 
 
                     ## Compute the rewards with the trained vae
-                    for l in range(len(self.obses[count])):
+                    for l in range(len(self.obses_coll[count])):
                         if name_density_model == 'vae':
+                            #import IPython
+                            #IPython.embed()
                             curr_noise = np.random.normal(size=(1, density_model.hidden_size))
-                            rewards[l] = density_model.get_density(self.obses[count][l].reshape(1, self.obses[count][l].shape[0]), curr_noise)
+    
+                            rewards[l] = density_model.get_density(self.obses_coll[count][l][density_model.starting_state:-1].reshape(1, self.obses_coll[count][l].shape[0] - (density_model.starting_state+1)), curr_noise)
                         else:
-                            rewards[l] = -density_model.get_density(self.obses[count][l].reshape(1, self.obses[count][l].shape[0]))
+                            rewards[l] = -density_model.get_density(self.obses_coll[count][l].reshape(1, self.obses_coll[count][l].shape[0]))
 
                     t = time.time()
-                    count += 1
-                    #import IPython
-                    #IPython.embed()
 
             else:
                 ### Here is everything regular
-                self.next_obses, rewards, self.dones, self.env_info = self.vec_env.step(actions)
+                self.next_obses, rewards, self.dones, self.env_info = self.vec_env.step(self.actions)
                 env_time += time.time() - t
+
+                self.obses_coll.append(self.next_obses)
+                self.dones_coll.append(self.dones)
+                self.env_infos_coll.append(self.env_info)
+
 
                 if reward_type == 'policy_entropy':
                     for l in range(len(self.next_obses)):
-                        rewards[l] = -np.log(policy.get_prob(actions[l], agent_infos['mean'][l], agent_infos['log_std'][l]))
+                        rewards[l] = -np.log(policy.get_prob(self.actions[l], self.agent_info['mean'][l], self.agent_info['log_std'][l]))
                 elif reward_type == 'discrete':
                     self._dim_space = 20
                     self._count_space = np.zeros(shape=(self._dim_space+1, self._dim_space+1))
@@ -132,16 +148,20 @@ class VectorizedSampler(BaseSampler):
                 #print('reward', rewards)
 
             t = time.time()
+
             #Return everything
-            agent_infos = tensor_utils.split_tensor_dict_list(agent_infos)
-            self.env_infos = tensor_utils.split_tensor_dict_list(self.env_info)
-            if self.env_infos is None:
-                self.env_infos = [dict() for _ in range(self.vec_env.num_envs)]
-            if agent_infos is None:
-                agent_infos = [dict() for _ in range(self.vec_env.num_envs)]
-            for idx, observation, action, reward, env_info, agent_info, done in zip(itertools.count(), obses, actions,
-                                                                                    rewards, self.env_infos, agent_infos,
-                                                                                    self.dones):
+            if reward == False:
+                self.agent_infos = tensor_utils.split_tensor_dict_list(self.agent_info)
+                self.env_infos = tensor_utils.split_tensor_dict_list(self.env_info)
+                if self.env_infos is None:
+                    self.env_infos = [dict() for _ in range(self.vec_env.num_envs)]
+                if self.agent_infos is None:
+                    self.agent_infos = [dict() for _ in range(self.vec_env.num_envs)]
+                self.agent_infos_coll.append(self.agent_infos)
+                self.env_infos_coll.append(self.env_infos)
+            for idx, observation, action, reward_v, env_info, agent_info, done in zip(itertools.count(), self.obses_coll[count], self.actions_coll[count],
+                                                                                    rewards, self.env_infos_coll[count], self.agent_infos_coll[count],
+                                                                                    self.dones_coll[count]):
                 if running_paths[idx] is None:
                     running_paths[idx] = dict(
                         observations=[],
@@ -150,11 +170,14 @@ class VectorizedSampler(BaseSampler):
                         env_infos=[],
                         agent_infos=[],
                     )
+
+
                 running_paths[idx]["observations"].append(observation)
                 running_paths[idx]["actions"].append(action)
-                running_paths[idx]["rewards"].append(reward)
+                running_paths[idx]["rewards"].append(reward_v)
                 running_paths[idx]["env_infos"].append(env_info)
                 running_paths[idx]["agent_infos"].append(agent_info)
+
                 if done:
                     paths.append(dict(
                         observations=self.env_spec.observation_space.flatten_n(running_paths[idx]["observations"]),
@@ -167,8 +190,9 @@ class VectorizedSampler(BaseSampler):
                     running_paths[idx] = None
 
             process_time += time.time() - t
-            pbar.inc(len(obses))
-            obses = self.next_obses
+            pbar.inc(len(self.obses))
+            self.obses = self.next_obses
+            count += 1
 
         pbar.stop()
 

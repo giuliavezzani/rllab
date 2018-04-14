@@ -140,13 +140,16 @@ class BatchPolopt(RLAlgorithm):
                 paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, reward=False)
                 logger.log("Processing samples...")
                 samples_data = self.process_samples(itr, paths)
-                logger.log("Logging diagnostics...")
-                self.log_diagnostics(paths)
+                #logger.log("Logging diagnostics...")
+                #self.log_diagnostics(paths)
 
                 ### Train the density model every iteration
                 if self.reward_type == 'state_entropy':
                     print('Training density model')
+                    # test
+                    #samples_data_coll = []
                     samples_data_coll.append(samples_data['observations'])
+
                     self.args_density_model.obs = samples_data_coll
                     self.args_density_model.itr = itr
 
