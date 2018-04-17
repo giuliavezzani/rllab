@@ -36,7 +36,7 @@ class VectorizedSampler(BaseSampler):
     def shutdown_worker(self):
         self.vec_env.terminate()
 
-    def obtain_samples(self, itr, density_model, reward_type, name_density_model):
+    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state):
         logger.log("Obtaining samples for iteration %d..." % itr)
         paths = []
         n_samples = 0
@@ -66,12 +66,36 @@ class VectorizedSampler(BaseSampler):
             if reward_type == 'state_entropy':
                 #import IPython
                 #IPython.embed()
+                if (mask_state == "objects"):
+                    self.mask_state_vect = np.zeros(14)
+                    for l in range(14):
+                        self.mask_state_vect[l] = 3 + l
+                    self.mask_state_vect = self.mask_state_vect.astype(int)
+                elif (mask_state == "one-object"):
+                    self.mask_state_vect = np.zeros(2)
+                    for l in range(2):
+                        self.mask_state_vect[l] = 3 + l
+                    self.mask_state_vect = self.mask_state_vect.astype(int)
+                elif (mask_state == "com"):
+                    self.mask_state_vect = np.zeros(2)
+                    for l in range(0, 2):
+                        self.mask_state_vect[l] =  l + 123
+                    self.mask_state_vect = self.mask_state_vect.astype(int)
+
+
                 for l in range(len(next_obses)):
                     if name_density_model == 'vae':
                         curr_noise = np.random.normal(size=(1, density_model.hidden_size))
-                        rewards[l] = density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise)
+                        if (mask_state == "objects" or mask_state == "one-object" or mask_state == "com"):
+                            rewards[l] += density_model.get_density(next_obses[l][self.mask_state_vect].reshape(1, next_obses[l][self.mask_state_vect].shape[0]), curr_noise)
+                        else:
+                            #print('vect', rewards)
+                            rewards[l] += density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise)
+                            #print(rewards)
                     else:
+
                         rewards[l] = density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]))
+
             elif reward_type == 'policy_entropy':
                 for l in range(len(next_obses)):
                     rewards[l] = -np.log(policy.get_prob(actions[l], agent_infos['mean'][l], agent_infos['log_std'][l]))
@@ -108,6 +132,8 @@ class VectorizedSampler(BaseSampler):
 
             t = time.time()
 
+            #import IPython
+            #IPython.embed()
             agent_infos = tensor_utils.split_tensor_dict_list(agent_infos)
             env_infos = tensor_utils.split_tensor_dict_list(env_infos)
             if env_infos is None:
@@ -140,6 +166,7 @@ class VectorizedSampler(BaseSampler):
                     ))
                     n_samples += len(running_paths[idx]["rewards"])
                     running_paths[idx] = None
+            #print(n_samples)
 
             process_time += time.time() - t
             pbar.inc(len(obses))

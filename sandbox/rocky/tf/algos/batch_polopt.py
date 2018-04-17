@@ -44,6 +44,8 @@ class BatchPolopt(RLAlgorithm):
             args_density_model= None,
             reward_type = 'std',
             name_density_model = 'vae',
+            mask_state = 'all',
+            use_old_data = 'yes',
             **kwargs
     ):
         """
@@ -90,6 +92,8 @@ class BatchPolopt(RLAlgorithm):
         self.args_density_model  = args_density_model
         self.name_density_model  = name_density_model
         self.reward_type = reward_type
+        self.mask_state = mask_state
+        self.use_old_data = use_old_data
 
         if self.store_paths:
             logger.set_snapshot_dir(self.log_dir)
@@ -111,8 +115,8 @@ class BatchPolopt(RLAlgorithm):
     def shutdown_worker(self):
         self.sampler.shutdown_worker()
 
-    def obtain_samples(self, itr, density_model, reward_type, name_density_model):
-        return self.sampler.obtain_samples(itr, density_model, reward_type, name_density_model)
+    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state):
+        return self.sampler.obtain_samples(itr, density_model, reward_type, name_density_model, mask_state)
 
     def process_samples(self, itr, paths):
         return self.sampler.process_samples(itr, paths)
@@ -134,7 +138,7 @@ class BatchPolopt(RLAlgorithm):
             with logger.prefix('itr #%d | ' % itr):
                 logger.log("Obtaining samples...")
 
-                paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model)
+                paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state)
                 logger.log("Processing samples...")
                 samples_data = self.process_samples(itr, paths)
                 logger.log("Logging diagnostics...")
@@ -145,8 +149,32 @@ class BatchPolopt(RLAlgorithm):
                 ### Train the density model every iteration
                 if self.reward_type == 'state_entropy':
                     print('Training density model')
-                    samples_data_coll.append(samples_data['observations'])
+                    if (self.mask_state == "objects"):
+                        self.mask_state_vect = np.zeros(14)
+                        for l in range(14):
+                            self.mask_state_vect[l] = 3 + l
+
+                        self.mask_state_vect = self.mask_state_vect.astype(int)
+                    elif (self.mask_state == "one-object"):
+                        self.mask_state_vect = np.zeros(2)
+                        for l in range(2):
+                            self.mask_state_vect[l] = 3 + l
+                        self.mask_state_vect = self.mask_state_vect.astype(int)
+                    elif (self.mask_state == "com"):
+                        self.mask_state_vect = np.zeros(2)
+                        for l in range(0,2):
+                            self.mask_state_vect[l] =  123
+                        self.mask_state_vect = self.mask_state_vect.astype(int)
+
+
+                    if self.use_old_data == 'no':
+                        samples_data_coll = []
+                    if (self.mask_state == "objects") or (self.mask_state == "one-object") or (self.mask_state == "com"):
+                        samples_data_coll.append([samples[self.mask_state_vect] for samples in samples_data['observations']])
+                    else:
+                        samples_data_coll.append(samples_data['observations'])
                     self.args_density_model.obs = samples_data_coll
+
                     self.args_density_model.itr = itr
 
                     ## Let's try to reinitialize everytime
