@@ -79,7 +79,9 @@ class VectorizedSampler(BaseSampler):
                 elif (mask_state == "com"):
                     self.mask_state_vect = np.zeros(2)
                     for l in range(0, 2):
-                        self.mask_state_vect[l] =  l + 123
+                        self.mask_state_vect[l] =  l + 122
+
+            
                     self.mask_state_vect = self.mask_state_vect.astype(int)
 
 
@@ -87,10 +89,12 @@ class VectorizedSampler(BaseSampler):
                     if name_density_model == 'vae':
                         curr_noise = np.random.normal(size=(1, density_model.hidden_size))
                         if (mask_state == "objects" or mask_state == "one-object" or mask_state == "com"):
-                            rewards[l] += density_model.get_density(next_obses[l][self.mask_state_vect].reshape(1, next_obses[l][self.mask_state_vect].shape[0]), curr_noise)
+                            if rewards[l] == -10:
+                                rewards[l] += density_model.get_density(next_obses[l][self.mask_state_vect].reshape(1, next_obses[l][self.mask_state_vect].shape[0]), curr_noise)
                         else:
                             #print('vect', rewards)
-                            rewards[l] += density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise)
+                            if rewards[l] == -10:
+                                rewards[l] += density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise)
                             #print(rewards)
                     else:
 

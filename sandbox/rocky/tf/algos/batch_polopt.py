@@ -163,7 +163,7 @@ class BatchPolopt(RLAlgorithm):
                     elif (self.mask_state == "com"):
                         self.mask_state_vect = np.zeros(2)
                         for l in range(0,2):
-                            self.mask_state_vect[l] =  123
+                            self.mask_state_vect[l] =  122 + l
                         self.mask_state_vect = self.mask_state_vect.astype(int)
 
 
