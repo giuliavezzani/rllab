@@ -1,4 +1,5 @@
 import time
+import copy
 import pickle
 import numpy as np
 from rllab.algos.base import RLAlgorithm
@@ -115,8 +116,8 @@ class BatchPolopt(RLAlgorithm):
     def shutdown_worker(self):
         self.sampler.shutdown_worker()
 
-    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state):
-        return self.sampler.obtain_samples(itr, density_model, reward_type, name_density_model, mask_state)
+    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, new_density_model=None):
+        return self.sampler.obtain_samples(itr, density_model, reward_type, name_density_model, mask_state,  new_density_model)
 
     def process_samples(self, itr, paths):
         return self.sampler.process_samples(itr, paths)
@@ -143,11 +144,13 @@ class BatchPolopt(RLAlgorithm):
                 samples_data = self.process_samples(itr, paths)
                 logger.log("Logging diagnostics...")
                 self.log_diagnostics(paths)
-                logger.log("Optimizing policy...")
-                self.optimize_policy(itr, samples_data)
+                ### If we use pseudo-count the policy should updated later
+                if not self.reward_type == 'pseudo-count':
+                    logger.log("Optimizing policy...")
+                    self.optimize_policy(itr, samples_data)
 
                 ### Train the density model every iteration
-                if self.reward_type == 'state_entropy':
+                if self.reward_type == 'state_entropy' or self.reward_type == 'pseudo-count':
                     print('Training density model')
                     if (self.mask_state == "objects"):
                         self.mask_state_vect = np.zeros(14)
@@ -181,6 +184,59 @@ class BatchPolopt(RLAlgorithm):
                     self.density_model.init_opt()
                     self.density_model.train(self.args_density_model, itr)
                     print('Density model trained')
+
+################################ Pseudo count#################################################
+                if self.reward_type == 'pseudo-count':
+                    new_density = copy.copy(self.density_model)
+                    paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state)
+                    logger.log("Processing samples...")
+                    samples_data = self.process_samples(itr, paths)
+                    logger.log("Logging diagnostics...")
+                    self.log_diagnostics(paths)
+                    print('Training  NEW density model')
+                    if (self.mask_state == "objects"):
+                        self.mask_state_vect = np.zeros(14)
+                        for l in range(14):
+                            self.mask_state_vect[l] = 3 + l
+
+                        self.mask_state_vect = self.mask_state_vect.astype(int)
+                    elif (self.mask_state == "one-object"):
+                        self.mask_state_vect = np.zeros(2)
+                        for l in range(2):
+                            self.mask_state_vect[l] = 3 + l
+                        self.mask_state_vect = self.mask_state_vect.astype(int)
+                    elif (self.mask_state == "com"):
+                        self.mask_state_vect = np.zeros(2)
+                        for l in range(0,2):
+                            self.mask_state_vect[l] =  122 + l
+                        self.mask_state_vect = self.mask_state_vect.astype(int)
+
+
+                    if self.use_old_data == 'no':
+                        samples_data_coll = []
+                    if (self.mask_state == "objects") or (self.mask_state == "one-object") or (self.mask_state == "com"):
+                        samples_data_coll.append([samples[self.mask_state_vect] for samples in samples_data['observations']])
+                    else:
+                        samples_data_coll.append(samples_data['observations'])
+                    self.args_density_model.obs = samples_data_coll
+
+                    self.args_density_model.itr = itr
+
+                    ## Let's try to reinitialize everytime
+                    new_density.init_opt()
+                    new_density.train(self.args_density_model, itr)
+                    print('NEW Density model trained')
+
+                    paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, new_density_model=new_density)
+                    logger.log("Processing samples...")
+                    samples_data = self.process_samples(itr, paths)
+                    logger.log("Logging diagnostics...")
+                    self.log_diagnostics(paths)
+                    ### If we use pseudo-count the policy should updated later
+                    if not self.reward_type == 'pseudo-count':
+                        logger.log("Optimizing policy...")
+                        self.optimize_policy(itr, samples_data)
+################################ Pseudo count#################################################
 
                 logger.log("Saving snapshot...")
                 params = self.get_itr_snapshot(itr, samples_data)  # , **kwargs)
