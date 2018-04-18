@@ -36,7 +36,7 @@ class VectorizedSampler(BaseSampler):
     def shutdown_worker(self):
         self.vec_env.terminate()
 
-    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state):
+    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, new_density_model=None):
         logger.log("Obtaining samples for iteration %d..." % itr)
         paths = []
         n_samples = 0
@@ -80,8 +80,6 @@ class VectorizedSampler(BaseSampler):
                     self.mask_state_vect = np.zeros(2)
                     for l in range(0, 2):
                         self.mask_state_vect[l] =  l + 122
-
-            
                     self.mask_state_vect = self.mask_state_vect.astype(int)
 
 
@@ -91,9 +89,13 @@ class VectorizedSampler(BaseSampler):
                         if (mask_state == "objects" or mask_state == "one-object" or mask_state == "com"):
                             if rewards[l] == -10:
                                 rewards[l] += density_model.get_density(next_obses[l][self.mask_state_vect].reshape(1, next_obses[l][self.mask_state_vect].shape[0]), curr_noise)
+                            elif rewards[l] == 0:
+                                rewards[l] += density_model.get_density(next_obses[l][self.mask_state_vect].reshape(1, next_obses[l][self.mask_state_vect].shape[0]), curr_noise)
                         else:
                             #print('vect', rewards)
                             if rewards[l] == -10:
+                                rewards[l] += density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise)
+                            elif rewards[l] == 0:
                                 rewards[l] += density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise)
                             #print(rewards)
                     else:
@@ -129,6 +131,12 @@ class VectorizedSampler(BaseSampler):
                     rewards[l] =  -self._count_space[int(h_spec[l]), int(i_spec[l])]/( len(next_obses))
 
 
+            elif reward_type=='count-based':
+                for l in range(len(next_obses)):
+                    curr_noise = np.random.normal(size=(1, density_model.hidden_size))
+                    ro = np.exp(-density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise))
+                    ro_new = np.exp(-new_density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise))
+                    rewards[l] += (ro_new - ro) / ro * (1 - ro_new) 
             else:
                 for l in range(len(next_obses)):
                     rewards[l] =  -np.linalg.norm(next_obses[l][0:2] - np.array([2.0, 2.0]))
