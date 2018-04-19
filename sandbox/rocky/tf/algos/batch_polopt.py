@@ -116,8 +116,8 @@ class BatchPolopt(RLAlgorithm):
     def shutdown_worker(self):
         self.sampler.shutdown_worker()
 
-    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, new_density_model=None):
-        return self.sampler.obtain_samples(itr, density_model, reward_type, name_density_model, mask_state,  new_density_model)
+    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, new_density_model=None, old_paths=None):
+        return self.sampler.obtain_samples(itr, density_model, reward_type, name_density_model, mask_state,  new_density_model, old_paths)
 
     def process_samples(self, itr, paths):
         return self.sampler.process_samples(itr, paths)
@@ -227,11 +227,12 @@ class BatchPolopt(RLAlgorithm):
                     new_density.train(self.args_density_model, itr)
                     print('NEW Density model trained')
 
-                    paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, new_density_model=new_density)
+                    paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, new_density_model=new_density, old_paths=paths)
                     logger.log("Processing samples...")
                     samples_data = self.process_samples(itr, paths)
                     logger.log("Logging diagnostics...")
                     self.log_diagnostics(paths)
+                    #print('rewards used', samples_data['rewards'])
                     ### If we use pseudo-count the policy should updated later
                     if not self.reward_type == 'pseudo-count':
                         logger.log("Optimizing policy...")

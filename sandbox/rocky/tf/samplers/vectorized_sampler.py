@@ -36,7 +36,7 @@ class VectorizedSampler(BaseSampler):
     def shutdown_worker(self):
         self.vec_env.terminate()
 
-    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, new_density_model=None):
+    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, new_density_model=None, old_paths=None):
         logger.log("Obtaining samples for iteration %d..." % itr)
         paths = []
         n_samples = 0
@@ -52,6 +52,7 @@ class VectorizedSampler(BaseSampler):
         policy = self.algo.policy
         import time
         while n_samples < self.algo.batch_size:
+            #if old_paths == None:
             t = time.time()
             policy.reset(dones)
             actions, agent_infos = policy.get_actions(obses)
@@ -131,12 +132,15 @@ class VectorizedSampler(BaseSampler):
                     rewards[l] =  -self._count_space[int(h_spec[l]), int(i_spec[l])]/( len(next_obses))
 
 
-            elif reward_type=='count-based':
+            elif reward_type=='pseudo-count' and not new_density_model==None:
                 for l in range(len(next_obses)):
                     curr_noise = np.random.normal(size=(1, density_model.hidden_size))
                     ro = np.exp(-density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise))
                     ro_new = np.exp(-new_density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise))
-                    rewards[l] += (ro_new - ro) / ro * (1 - ro_new) 
+                    rewards[l] += (ro_new - ro) / ro * (1 - ro_new)
+
+                #import IPython
+                #IPython.embed()
             else:
                 for l in range(len(next_obses)):
                     rewards[l] =  -np.linalg.norm(next_obses[l][0:2] - np.array([2.0, 2.0]))
