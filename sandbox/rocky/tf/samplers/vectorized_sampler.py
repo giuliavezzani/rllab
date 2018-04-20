@@ -62,11 +62,13 @@ class VectorizedSampler(BaseSampler):
             next_obses, rewards, dones, env_infos = self.vec_env.step(actions)
             env_time += time.time() - t
 
-            ### Rewards for the point mass in exploration are 0.0
 
+            ### Rewards for the point mass in exploration are 0.0
+            scale = 0.1
             if reward_type == 'state_entropy':
                 #import IPython
                 #IPython.embed()
+
                 if (mask_state == "objects"):
                     self.mask_state_vect = np.zeros(14)
                     for l in range(14):
@@ -84,28 +86,35 @@ class VectorizedSampler(BaseSampler):
                     self.mask_state_vect = self.mask_state_vect.astype(int)
 
 
+
+                rewards_real = np.zeros(shape=rewards.shape)
+
                 for l in range(len(next_obses)):
                     if name_density_model == 'vae':
                         curr_noise = np.random.normal(size=(1, density_model.hidden_size))
                         if (mask_state == "objects" or mask_state == "one-object" or mask_state == "com"):
-                            if rewards[l] == -10:
-                                rewards[l] += density_model.get_density(next_obses[l][self.mask_state_vect].reshape(1, next_obses[l][self.mask_state_vect].shape[0]), curr_noise)
-                            elif rewards[l] == 0:
-                                rewards[l] += density_model.get_density(next_obses[l][self.mask_state_vect].reshape(1, next_obses[l][self.mask_state_vect].shape[0]), curr_noise)
+                            #if rewards[l] == -10:
+                            rewards_real[l]= rewards[l]
+                            rewards[l] = rewards[l] * scale +  density_model.get_density(next_obses[l][self.mask_state_vect].reshape(1, next_obses[l][self.mask_state_vect].shape[0]), curr_noise)
+                            #elif rewards[l] == 0:
+                                #rewards[l] += density_model.get_density(next_obses[l][self.mask_state_vect].reshape(1, next_obses[l][self.mask_state_vect].shape[0]), curr_noise) * scale
                         else:
                             #print('vect', rewards)
-                            if rewards[l] == -10:
-                                rewards[l] += density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise)
-                            elif rewards[l] == 0:
-                                rewards[l] += density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise)
+                            #if rewards[l] == -10:
+                            rewards_real[l]= rewards[l]
+                            rewards[l] = rewards[l] * scale + density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise)
+                            #elif rewards[l] == 0:
+                            #    rewards[l] += density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise)
                             #print(rewards)
                     else:
 
                         rewards[l] = density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]))
 
             elif reward_type == 'policy_entropy':
+                rewards_real = np.zeros(shape=rewards.shape)
                 for l in range(len(next_obses)):
-                    rewards[l] = -np.log(policy.get_prob(actions[l], agent_infos['mean'][l], agent_infos['log_std'][l]))
+                    rewards_real[l]= rewards[l]
+                    rewards[l] = rewards[l] * scale -np.log(policy.get_prob(actions[l], agent_infos['mean'][l], agent_infos['log_std'][l]))
             elif reward_type == 'discrete':
                 self._dim_space = 20
                 self._count_space = np.zeros(shape=(self._dim_space+1, self._dim_space+1))
@@ -146,19 +155,18 @@ class VectorizedSampler(BaseSampler):
                     rewards[l] =  -np.linalg.norm(next_obses[l][0:2] - np.array([2.0, 2.0]))
             #print('reward', rewards)
 
+
             t = time.time()
 
-            #import IPython
-            #IPython.embed()
             agent_infos = tensor_utils.split_tensor_dict_list(agent_infos)
             env_infos = tensor_utils.split_tensor_dict_list(env_infos)
             if env_infos is None:
                 env_infos = [dict() for _ in range(self.vec_env.num_envs)]
             if agent_infos is None:
                 agent_infos = [dict() for _ in range(self.vec_env.num_envs)]
-            for idx, observation, action, reward, env_info, agent_info, done in zip(itertools.count(), obses, actions,
+            for idx, observation, action, reward, env_info, agent_info, done, r_real in zip(itertools.count(), obses, actions,
                                                                                     rewards, env_infos, agent_infos,
-                                                                                    dones):
+                                                                                    dones, rewards_real):
                 if running_paths[idx] is None:
                     running_paths[idx] = dict(
                         observations=[],
@@ -166,10 +174,12 @@ class VectorizedSampler(BaseSampler):
                         rewards=[],
                         env_infos=[],
                         agent_infos=[],
+                        rewards_real=[],
                     )
                 running_paths[idx]["observations"].append(observation)
                 running_paths[idx]["actions"].append(action)
                 running_paths[idx]["rewards"].append(reward)
+                running_paths[idx]["rewards_real"].append(r_real)
                 running_paths[idx]["env_infos"].append(env_info)
                 running_paths[idx]["agent_infos"].append(agent_info)
                 if done:
@@ -179,6 +189,7 @@ class VectorizedSampler(BaseSampler):
                         rewards=tensor_utils.stack_tensor_list(running_paths[idx]["rewards"]),
                         env_infos=tensor_utils.stack_tensor_dict_list(running_paths[idx]["env_infos"]),
                         agent_infos=tensor_utils.stack_tensor_dict_list(running_paths[idx]["agent_infos"]),
+                        rewards_real=tensor_utils.stack_tensor_list(running_paths[idx]["rewards_real"]),
                     ))
                     n_samples += len(running_paths[idx]["rewards"])
                     running_paths[idx] = None
@@ -193,5 +204,7 @@ class VectorizedSampler(BaseSampler):
         logger.record_tabular("PolicyExecTime", policy_time)
         logger.record_tabular("EnvExecTime", env_time)
         logger.record_tabular("ProcessExecTime", process_time)
+
+
 
         return paths

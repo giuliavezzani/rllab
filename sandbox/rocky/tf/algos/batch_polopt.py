@@ -258,7 +258,7 @@ class BatchPolopt(RLAlgorithm):
                 if np.mod(itr, self.gap) == 0:
                     observations.append(samples_data['observations'])
                     pickle.dump(observations, open(self.log_dir+'/observations.pkl', 'wb'))
-                    rewards.append(samples_data['rewards'])
+                    rewards.append(paths[0]['rewards_real'])
                     pickle.dump(rewards, open(self.log_dir+'/rewards.pkl', 'wb'))
 
 
