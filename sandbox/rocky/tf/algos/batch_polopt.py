@@ -10,6 +10,8 @@ from sandbox.rocky.tf.samplers.batch_sampler import BatchSampler
 from sandbox.rocky.tf.samplers.vectorized_sampler import VectorizedSampler
 from rllab.sampler.utils import rollout
 
+from sandbox.rocky.tf.networks.value_function import NNFunctionMultiHead
+
 
 class BatchPolopt(RLAlgorithm):
     """
@@ -47,6 +49,10 @@ class BatchPolopt(RLAlgorithm):
             name_density_model = 'vae',
             mask_state = 'all',
             use_old_data = 'yes',
+            network = None,
+            bottleneck_size = 16,
+            graph = None,
+            file_network = None,
             **kwargs
     ):
         """
@@ -95,6 +101,10 @@ class BatchPolopt(RLAlgorithm):
         self.reward_type = reward_type
         self.mask_state = mask_state
         self.use_old_data = use_old_data
+        self.network = network
+        self.bottleneck_size = bottleneck_size
+        self.graph = graph
+        self.file_network = file_network
 
         if self.store_paths:
             logger.set_snapshot_dir(self.log_dir)
@@ -108,6 +118,23 @@ class BatchPolopt(RLAlgorithm):
             sampler_args = dict()
         self.sampler = sampler_cls(self, **sampler_args)
 
+
+        if not self.network == None:
+            self.sess = tf.Session(graph=self.graph)
+            with self.sess.as_default():
+                with self.graph.as_default():
+                    saver = tf.train.Saver(tf.global_variables())
+                    save_path = saver.restore(self.sess,self.file_network)
+                    print("Model Bottleneck restored")
+
+                    self.obs_pl = tf.placeholder(
+                                    tf.float32,
+                                    shape=[None, self.env.spec.observation_space.flat_dim],
+                                    name='observations')
+
+        else:
+            self.sess = None
+
         self.init_opt()
 
     def start_worker(self):
@@ -116,8 +143,8 @@ class BatchPolopt(RLAlgorithm):
     def shutdown_worker(self):
         self.sampler.shutdown_worker()
 
-    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, new_density_model=None, old_paths=None):
-        return self.sampler.obtain_samples(itr, density_model, reward_type, name_density_model, mask_state,  new_density_model, old_paths)
+    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, new_density_model=None, old_paths=None, network=None, sess=None, obs_pl=None, graph=None):
+        return self.sampler.obtain_samples(itr, density_model, reward_type, name_density_model, mask_state,  new_density_model, old_paths, network, sess, obs_pl, graph)
 
     def process_samples(self, itr, paths):
         return self.sampler.process_samples(itr, paths)
@@ -139,7 +166,7 @@ class BatchPolopt(RLAlgorithm):
             with logger.prefix('itr #%d | ' % itr):
                 logger.log("Obtaining samples...")
 
-                paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state)
+                paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, network=self.network, sess=self.sess, obs_pl=self.obs_pl, graph=self.graph)
                 logger.log("Processing samples...")
                 samples_data = self.process_samples(itr, paths)
                 logger.log("Logging diagnostics...")
@@ -152,30 +179,39 @@ class BatchPolopt(RLAlgorithm):
                 ### Train the density model every iteration
                 if self.reward_type == 'state_entropy' or self.reward_type == 'pseudo-count':
                     print('Training density model')
-                    if (self.mask_state == "objects"):
-                        self.mask_state_vect = np.zeros(14)
-                        for l in range(14):
-                            self.mask_state_vect[l] = 3 + l
+                    ## Using all state of hand-coded masks
+                    if self.network == None:
+                        if (self.mask_state == "objects"):
+                            self.mask_state_vect = np.zeros(14)
+                            for l in range(14):
+                                self.mask_state_vect[l] = 3 + l
 
-                        self.mask_state_vect = self.mask_state_vect.astype(int)
-                    elif (self.mask_state == "one-object"):
-                        self.mask_state_vect = np.zeros(2)
-                        for l in range(2):
-                            self.mask_state_vect[l] = 3 + l
-                        self.mask_state_vect = self.mask_state_vect.astype(int)
-                    elif (self.mask_state == "com"):
-                        self.mask_state_vect = np.zeros(2)
-                        for l in range(0,2):
-                            self.mask_state_vect[l] =  122 + l
-                        self.mask_state_vect = self.mask_state_vect.astype(int)
+                            self.mask_state_vect = self.mask_state_vect.astype(int)
+                        elif (self.mask_state == "one-object"):
+                            self.mask_state_vect = np.zeros(2)
+                            for l in range(2):
+                                self.mask_state_vect[l] = 3 + l
+                            self.mask_state_vect = self.mask_state_vect.astype(int)
+                        elif (self.mask_state == "com"):
+                            self.mask_state_vect = np.zeros(2)
+                            for l in range(0,2):
+                                self.mask_state_vect[l] =  122 + l
+                            self.mask_state_vect = self.mask_state_vect.astype(int)
 
 
-                    if self.use_old_data == 'no':
-                        samples_data_coll = []
-                    if (self.mask_state == "objects") or (self.mask_state == "one-object") or (self.mask_state == "com"):
-                        samples_data_coll.append([samples[self.mask_state_vect] for samples in samples_data['observations']])
+                        if self.use_old_data == 'no':
+                            samples_data_coll = []
+                        if (self.mask_state == "objects") or (self.mask_state == "one-object") or (self.mask_state == "com"):
+                            samples_data_coll.append([samples[self.mask_state_vect] for samples in samples_data['observations']])
+                        else:
+                            samples_data_coll.append(samples_data['observations'])
+                    ## Using the learnt representation
                     else:
-                        samples_data_coll.append(samples_data['observations'])
+                        with self.sess.as_default():
+                            with self.graph.as_default():
+                                samples_data_coll.append(self.sess.run(self.network._output_for_shared(self.obs_pl, task=0, reuse=tf.AUTO_REUSE),
+                                                                                    feed_dict={self.obs_pl: samples_data['observations']}))
+
                     self.args_density_model.obs = samples_data_coll
 
                     self.args_density_model.itr = itr

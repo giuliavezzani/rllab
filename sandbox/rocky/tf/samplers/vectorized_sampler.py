@@ -10,6 +10,8 @@ from rllab.sampler.stateful_pool import ProgBarCounter
 import rllab.misc.logger as logger
 import itertools
 
+from sandbox.rocky.tf.networks.value_function import NNFunctionMultiHead
+
 
 class VectorizedSampler(BaseSampler):
 
@@ -36,7 +38,7 @@ class VectorizedSampler(BaseSampler):
     def shutdown_worker(self):
         self.vec_env.terminate()
 
-    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, new_density_model=None, old_paths=None):
+    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, new_density_model=None, old_paths=None, network=None, sess=None, obs_pl=None, graph=None):
         logger.log("Obtaining samples for iteration %d..." % itr)
         paths = []
         n_samples = 0
@@ -61,6 +63,7 @@ class VectorizedSampler(BaseSampler):
             t = time.time()
             next_obses, rewards, dones, env_infos = self.vec_env.step(actions)
             env_time += time.time() - t
+            obs_bottleneck = []
 
 
             ### Rewards for the point mass in exploration are 0.0
@@ -68,23 +71,22 @@ class VectorizedSampler(BaseSampler):
             if reward_type == 'state_entropy':
                 #import IPython
                 #IPython.embed()
-
-                if (mask_state == "objects"):
-                    self.mask_state_vect = np.zeros(14)
-                    for l in range(14):
-                        self.mask_state_vect[l] = 3 + l
-                    self.mask_state_vect = self.mask_state_vect.astype(int)
-                elif (mask_state == "one-object"):
-                    self.mask_state_vect = np.zeros(2)
-                    for l in range(2):
-                        self.mask_state_vect[l] = 3 + l
-                    self.mask_state_vect = self.mask_state_vect.astype(int)
-                elif (mask_state == "com"):
-                    self.mask_state_vect = np.zeros(2)
-                    for l in range(0, 2):
-                        self.mask_state_vect[l] =  l + 122
-                    self.mask_state_vect = self.mask_state_vect.astype(int)
-
+                if not network == None:
+                    if (mask_state == "objects"):
+                        self.mask_state_vect = np.zeros(14)
+                        for l in range(14):
+                            self.mask_state_vect[l] = 3 + l
+                        self.mask_state_vect = self.mask_state_vect.astype(int)
+                    elif (mask_state == "one-object"):
+                        self.mask_state_vect = np.zeros(2)
+                        for l in range(2):
+                            self.mask_state_vect[l] = 3 + l
+                        self.mask_state_vect = self.mask_state_vect.astype(int)
+                    elif (mask_state == "com"):
+                        self.mask_state_vect = np.zeros(2)
+                        for l in range(0, 2):
+                            self.mask_state_vect[l] =  l + 122
+                        self.mask_state_vect = self.mask_state_vect.astype(int)
 
 
                 rewards_real = np.zeros(shape=rewards.shape)
@@ -101,14 +103,35 @@ class VectorizedSampler(BaseSampler):
                         else:
                             #print('vect', rewards)
                             #if rewards[l] == -10:
-                            rewards_real[l]= rewards[l]
-                            rewards[l] = rewards[l] * scale + density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise)
+                            if network == None:
+                                rewards_real[l]= rewards[l]
+                                rewards[l] = rewards[l] * scale + density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise)
+                            else:
+
+                                with sess.as_default():
+                                    with graph.as_default():
+                                        obs_bottleneck.append(sess.run(network._output_for_shared(obs_pl, task=0, reuse=tf.AUTO_REUSE),
+                                                                                        feed_dict={obs_pl: next_obses[l].reshape(1, next_obses[l].shape[0])}))
+
+
+                                        #import IPython
+                                        #IPython.embed()
+                                rewards_real[l]= rewards[l]
+                                rewards[l] = rewards[l] * scale + density_model.get_density(obs_bottleneck[l], curr_noise)
                             #elif rewards[l] == 0:
                             #    rewards[l] += density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise)
                             #print(rewards)
                     else:
 
                         rewards[l] = density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]))
+
+                if not network==None:
+                    with sess.as_default():
+                        with graph.as_default():
+                            obs_bottleneck = [sess.run(network._output_for_shared(obs_pl, task=0, reuse=tf.AUTO_REUSE),
+                                                                            feed_dict={obs_pl: next_obs.reshape(1, next_obses[l].shape[0])})) for next_obs in next_obses]
+                    rewards_real = rewards
+                    rewards = [rew * scale + density_model.get_density(obs_bottl, curr_noise) for rew in rewards and obs_bottl in obs_bottleneck]
 
             elif reward_type == 'policy_entropy':
                 rewards_real = np.zeros(shape=rewards.shape)
