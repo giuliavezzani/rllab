@@ -38,7 +38,7 @@ class VectorizedSampler(BaseSampler):
     def shutdown_worker(self):
         self.vec_env.terminate()
 
-    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, new_density_model=None, old_paths=None, network=None, sess=None, obs_pl=None, graph=None):
+    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, new_density_model=None, old_paths=None):
         logger.log("Obtaining samples for iteration %d..." % itr)
         paths = []
         n_samples = 0
@@ -71,67 +71,46 @@ class VectorizedSampler(BaseSampler):
             if reward_type == 'state_entropy':
                 #import IPython
                 #IPython.embed()
-                if not network == None:
-                    if (mask_state == "objects"):
-                        self.mask_state_vect = np.zeros(14)
-                        for l in range(14):
-                            self.mask_state_vect[l] = 3 + l
-                        self.mask_state_vect = self.mask_state_vect.astype(int)
-                    elif (mask_state == "one-object"):
-                        self.mask_state_vect = np.zeros(2)
-                        for l in range(2):
-                            self.mask_state_vect[l] = 3 + l
-                        self.mask_state_vect = self.mask_state_vect.astype(int)
-                    elif (mask_state == "com"):
-                        self.mask_state_vect = np.zeros(2)
-                        for l in range(0, 2):
-                            self.mask_state_vect[l] =  l + 122
-                        self.mask_state_vect = self.mask_state_vect.astype(int)
+
+                if (mask_state == "objects"):
+                    self.mask_state_vect = np.zeros(14)
+                    for l in range(14):
+                        self.mask_state_vect[l] = 3 + l
+                    self.mask_state_vect = self.mask_state_vect.astype(int)
+                elif (mask_state == "one-object"):
+                    self.mask_state_vect = np.zeros(2)
+                    for l in range(2):
+                        self.mask_state_vect[l] = 3 + l
+                    self.mask_state_vect = self.mask_state_vect.astype(int)
+                elif (mask_state == "com"):
+                    self.mask_state_vect = np.zeros(2)
+                    for l in range(0, 2):
+                        self.mask_state_vect[l] =  l + 122
+                    self.mask_state_vect = self.mask_state_vect.astype(int)
 
 
                 rewards_real = np.zeros(shape=rewards.shape)
 
-                for l in range(len(next_obses)):
-                    if name_density_model == 'vae':
-                        curr_noise = np.random.normal(size=(1, density_model.hidden_size))
-                        if (mask_state == "objects" or mask_state == "one-object" or mask_state == "com"):
-                            #if rewards[l] == -10:
-                            rewards_real[l]= rewards[l]
-                            rewards[l] = rewards[l] * scale +  density_model.get_density(next_obses[l][self.mask_state_vect].reshape(1, next_obses[l][self.mask_state_vect].shape[0]), curr_noise)
-                            #elif rewards[l] == 0:
-                                #rewards[l] += density_model.get_density(next_obses[l][self.mask_state_vect].reshape(1, next_obses[l][self.mask_state_vect].shape[0]), curr_noise) * scale
-                        else:
-                            #print('vect', rewards)
-                            #if rewards[l] == -10:
-                            if network == None:
-                                rewards_real[l]= rewards[l]
-                                rewards[l] = rewards[l] * scale + density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise)
-                            else:
 
-                                with sess.as_default():
-                                    with graph.as_default():
-                                        obs_bottleneck.append(sess.run(network._output_for_shared(obs_pl, task=0, reuse=tf.AUTO_REUSE),
-                                                                                        feed_dict={obs_pl: next_obses[l].reshape(1, next_obses[l].shape[0])}))
-
-
-                                        #import IPython
-                                        #IPython.embed()
-                                rewards_real[l]= rewards[l]
-                                rewards[l] = rewards[l] * scale + density_model.get_density(obs_bottleneck[l], curr_noise)
-                            #elif rewards[l] == 0:
-                            #    rewards[l] += density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise)
-                            #print(rewards)
+                #for l in range(len(next_obses)):
+                if name_density_model == 'vae':
+                    curr_noise = np.random.normal(size=(1, density_model.hidden_size))
+                    if (mask_state == "objects" or mask_state == "one-object" or mask_state == "com"):
+                        #if rewards[l] == -10:
+                        rewards_real= rewards
+                        rewards = rewards * scale +  [density_model.get_density(next_obs[self.mask_state_vect].reshape(1, next_obs[self.mask_state_vect].shape[0]), curr_noise) for next_obs in next_obses]
+                        #elif rewards[l] == 0:
+                            #rewards[l] += density_model.get_density(next_obses[l][self.mask_state_vect].reshape(1, next_obses[l][self.mask_state_vect].shape[0]), curr_noise) * scale
                     else:
+                        #elif rewards[l] == 0:
+                        rewards_real= rewards
+                        rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) for next_obs in next_obses]
+                        #print(rewards)
+                else:
 
-                        rewards[l] = density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]))
+                    rewards = [density_model.get_density(next_obs.reshape(1, next_obs.shape[0])) for next_obs in next_obses]
 
-                if not network==None:
-                    with sess.as_default():
-                        with graph.as_default():
-                            obs_bottleneck = [sess.run(network._output_for_shared(obs_pl, task=0, reuse=tf.AUTO_REUSE),
-                                                                            feed_dict={obs_pl: next_obs.reshape(1, next_obses[l].shape[0])})) for next_obs in next_obses]
-                    rewards_real = rewards
-                    rewards = [rew * scale + density_model.get_density(obs_bottl, curr_noise) for rew in rewards and obs_bottl in obs_bottleneck]
+
 
             elif reward_type == 'policy_entropy':
                 rewards_real = np.zeros(shape=rewards.shape)

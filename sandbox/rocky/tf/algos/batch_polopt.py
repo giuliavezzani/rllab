@@ -103,7 +103,6 @@ class BatchPolopt(RLAlgorithm):
         self.use_old_data = use_old_data
         self.network = network
         self.bottleneck_size = bottleneck_size
-        self.graph = graph
         self.file_network = file_network
 
         if self.store_paths:
@@ -119,21 +118,7 @@ class BatchPolopt(RLAlgorithm):
         self.sampler = sampler_cls(self, **sampler_args)
 
 
-        if not self.network == None:
-            self.sess = tf.Session(graph=self.graph)
-            with self.sess.as_default():
-                with self.graph.as_default():
-                    saver = tf.train.Saver(tf.global_variables())
-                    save_path = saver.restore(self.sess,self.file_network)
-                    print("Model Bottleneck restored")
 
-                    self.obs_pl = tf.placeholder(
-                                    tf.float32,
-                                    shape=[None, self.env.spec.observation_space.flat_dim],
-                                    name='observations')
-
-        else:
-            self.sess = None
 
         self.init_opt()
 
@@ -143,8 +128,8 @@ class BatchPolopt(RLAlgorithm):
     def shutdown_worker(self):
         self.sampler.shutdown_worker()
 
-    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, new_density_model=None, old_paths=None, network=None, sess=None, obs_pl=None, graph=None):
-        return self.sampler.obtain_samples(itr, density_model, reward_type, name_density_model, mask_state,  new_density_model, old_paths, network, sess, obs_pl, graph)
+    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, new_density_model=None, old_paths=None):
+        return self.sampler.obtain_samples(itr, density_model, reward_type, name_density_model, mask_state,  new_density_model, old_paths)
 
     def process_samples(self, itr, paths):
         return self.sampler.process_samples(itr, paths)
@@ -166,7 +151,7 @@ class BatchPolopt(RLAlgorithm):
             with logger.prefix('itr #%d | ' % itr):
                 logger.log("Obtaining samples...")
 
-                paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, network=self.network, sess=self.sess, obs_pl=self.obs_pl, graph=self.graph)
+                paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state)
                 logger.log("Processing samples...")
                 samples_data = self.process_samples(itr, paths)
                 logger.log("Logging diagnostics...")
