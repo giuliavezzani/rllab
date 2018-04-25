@@ -209,7 +209,12 @@ class BatchPolopt(RLAlgorithm):
                         if (self.mask_state == "objects") or (self.mask_state == "one-object") or (self.mask_state == "com"):
                             samples_data_coll.append([samples[self.mask_state_vect] for samples in samples_data['observations']])
                         else:
-                            samples_data_coll.append(samples_data['observations'])
+
+                            if samples_data['observations'].shape[0] > 1000:
+
+                                samples_data_coll.append(samples_data['observations'][0:-1:50][0:1000])
+                            else:
+                                samples_data_coll.append(samples_data['observations'])
                     ## Using the learnt representation
                     else:
                         with self.sess.as_default():
@@ -221,12 +226,14 @@ class BatchPolopt(RLAlgorithm):
 
                     self.args_density_model.itr = itr
 
-                    ## Let's try to reinitialize everytime
-                    self.density_model.init_opt()
-                    self.density_model.train(self.args_density_model, itr)
+                    print(np.asarray(samples_data_coll).ndim)
+                    if (np.asarray(samples_data_coll).ndim> 1):
+                        ## Let's try to reinitialize everytime
+                        self.density_model.init_opt()
+                        self.density_model.train(self.args_density_model, itr)
 
-                    print('Density model trained')
-
+                        print('Density model trained')
+                
 ################################ Pseudo count#################################################
                 if self.reward_type == 'pseudo-count':
                     new_density = copy.copy(self.density_model)
