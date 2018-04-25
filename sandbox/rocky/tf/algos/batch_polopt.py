@@ -53,6 +53,7 @@ class BatchPolopt(RLAlgorithm):
             bottleneck_size = 16,
             graph = None,
             file_network = None,
+            file_model = None,
             **kwargs
     ):
         """
@@ -104,23 +105,22 @@ class BatchPolopt(RLAlgorithm):
         self.network = network
         self.bottleneck_size = bottleneck_size
         self.file_network = file_network
+        self.file_model = file_model
 
         if self.store_paths:
             logger.set_snapshot_dir(self.log_dir)
 
         if sampler_cls is None:
-            if self.policy.vectorized and not force_batch_sampler:
-                sampler_cls = VectorizedSampler
-            else:
-                sampler_cls = BatchSampler
+            # if self.policy.vectorized and not force_batch_sampler:
+            sampler_cls = VectorizedSampler
+            # else:
+            #     sampler_cls = BatchSampler
         if sampler_args is None:
             sampler_args = dict()
         self.sampler = sampler_cls(self, **sampler_args)
 
-
-
-
-        self.init_opt()
+        if self.file_model == None:
+            self.init_opt()
 
     def start_worker(self):
         self.sampler.start_worker()
@@ -140,12 +140,32 @@ class BatchPolopt(RLAlgorithm):
             sess = tf.Session()
             sess.__enter__()
 
-        sess.run(tf.global_variables_initializer())
+        if self.file_model is not None:
+            import joblib
+            self.policy = joblib.load(self.file_model)['policy']
+            self.init_opt()
+                # initialize uninitialized vars  (only initialize vars that were not loaded)
+            uninit_vars = []
+            for var in tf.global_variables():
+                    # note - this is hacky, may be better way to do this in newer TF.
+                try:
+                    sess.run(var)
+                except tf.errors.FailedPreconditionError:
+                    uninit_vars.append(var)
+            sess.run(tf.variables_initializer(uninit_vars))
+        else:
+            sess.run(tf.global_variables_initializer())
+
         self.start_worker()
         start_time = time.time()
         observations = []
         rewards = []
+        rewards_real = []
+        returns = []
         samples_data_coll = []
+        self.density_model.scale = self.args_density_model.scale
+        self.density_model.decay_entr = self.args_density_model.decay_entropy
+
         for itr in range(self.start_itr, self.n_itr):
             itr_start_time = time.time()
             with logger.prefix('itr #%d | ' % itr):
@@ -204,6 +224,7 @@ class BatchPolopt(RLAlgorithm):
                     ## Let's try to reinitialize everytime
                     self.density_model.init_opt()
                     self.density_model.train(self.args_density_model, itr)
+
                     print('Density model trained')
 
 ################################ Pseudo count#################################################
@@ -279,8 +300,14 @@ class BatchPolopt(RLAlgorithm):
                 if np.mod(itr, self.gap) == 0:
                     observations.append(samples_data['observations'])
                     pickle.dump(observations, open(self.log_dir+'/observations.pkl', 'wb'))
-                    rewards.append(paths[0]['rewards_real'])
+                    rewards_real.append(samples_data['rewards_real'])
+
+                    pickle.dump(rewards_real, open(self.log_dir+'/rewards_real.pkl', 'wb'))
+                    rewards.append(samples_data['rewards'])
                     pickle.dump(rewards, open(self.log_dir+'/rewards.pkl', 'wb'))
+                    returns.append(samples_data['returns'])
+                    pickle.dump(returns, open(self.log_dir+'/returns.pkl', 'wb'))
+
 
 
         self.shutdown_worker()

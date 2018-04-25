@@ -74,6 +74,7 @@ class BaseSampler(Sampler):
             observations = tensor_utils.concat_tensor_list([path["observations"] for path in paths])
             actions = tensor_utils.concat_tensor_list([path["actions"] for path in paths])
             rewards = tensor_utils.concat_tensor_list([path["rewards"] for path in paths])
+            rewards_real = tensor_utils.concat_tensor_list([path["rewards_real"] for path in paths])
             returns = tensor_utils.concat_tensor_list([path["returns"] for path in paths])
             advantages = tensor_utils.concat_tensor_list([path["advantages"] for path in paths])
             env_infos = tensor_utils.concat_tensor_dict_list([path["env_infos"] for path in paths])
@@ -96,6 +97,7 @@ class BaseSampler(Sampler):
                 observations=observations,
                 actions=actions,
                 rewards=rewards,
+                rewards_real=rewards_real,
                 returns=returns,
                 advantages=advantages,
                 env_infos=env_infos,
@@ -125,6 +127,9 @@ class BaseSampler(Sampler):
             rewards = [path["rewards"] for path in paths]
             rewards = tensor_utils.pad_tensor_n(rewards, max_path_length)
 
+            rewards_real = [path["rewards_rea"] for path in paths]
+            rewards_rea = tensor_utils.pad_tensor_n(rewards, max_path_length)
+
             returns = [path["returns"] for path in paths]
             returns = tensor_utils.pad_tensor_n(returns, max_path_length)
 
@@ -144,6 +149,7 @@ class BaseSampler(Sampler):
             average_discounted_return = \
                 np.mean([path["returns"][0] for path in paths])
 
+
             undiscounted_returns = [sum(path["rewards"]) for path in paths]
 
             ent = np.sum(self.algo.policy.distribution.entropy(agent_infos) * valids) / np.sum(valids)
@@ -153,6 +159,7 @@ class BaseSampler(Sampler):
                 actions=actions,
                 advantages=adv,
                 rewards=rewards,
+                rewards_real=rewards_real,
                 returns=returns,
                 valids=valids,
                 agent_infos=agent_infos,

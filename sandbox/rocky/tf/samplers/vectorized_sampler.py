@@ -67,10 +67,13 @@ class VectorizedSampler(BaseSampler):
 
 
             ### Rewards for the point mass in exploration are 0.0
-            scale = 0.1
+            scale = density_model.scale
+            decay_entr = density_model.decay_entr
+
             if reward_type == 'state_entropy':
                 #import IPython
                 #IPython.embed()
+
 
                 if (mask_state == "objects"):
                     self.mask_state_vect = np.zeros(14)
@@ -98,19 +101,23 @@ class VectorizedSampler(BaseSampler):
                     if (mask_state == "objects" or mask_state == "one-object" or mask_state == "com"):
                         #if rewards[l] == -10:
                         rewards_real= rewards
-                        rewards = rewards * scale +  [density_model.get_density(next_obs[self.mask_state_vect].reshape(1, next_obs[self.mask_state_vect].shape[0]), curr_noise) for next_obs in next_obses]
+
+                        rewards = rewards * scale +  [density_model.get_density(next_obs[self.mask_state_vect].reshape(1, next_obs[self.mask_state_vect].shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
+                        #rewards = rewards * scale +  [density_model.get_density(next_obs[self.mask_state_vect].reshape(1, next_obs[self.mask_state_vect].shape[0]), curr_noise)  for next_obs in next_obses]
                         #elif rewards[l] == 0:
                             #rewards[l] += density_model.get_density(next_obses[l][self.mask_state_vect].reshape(1, next_obses[l][self.mask_state_vect].shape[0]), curr_noise) * scale
                     else:
                         #elif rewards[l] == 0:
                         rewards_real= rewards
-                        rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) for next_obs in next_obses]
-                        #print(rewards)
+
+                        rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
+                        #print((itr+1)**decay_entr)
+                        #rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise)  for next_obs in next_obses]
+
+
                 else:
 
                     rewards = [density_model.get_density(next_obs.reshape(1, next_obs.shape[0])) for next_obs in next_obses]
-
-
 
             elif reward_type == 'policy_entropy':
                 rewards_real = np.zeros(shape=rewards.shape)
@@ -153,8 +160,9 @@ class VectorizedSampler(BaseSampler):
                 #import IPython
                 #IPython.embed()
             else:
-                for l in range(len(next_obses)):
-                    rewards[l] =  -np.linalg.norm(next_obses[l][0:2] - np.array([2.0, 2.0]))
+                rewards_real = rewards
+            #    for l in range(len(next_obses)):
+            #        rewards[l] =  -np.linalg.norm(next_obses[l][0:2] - np.array([2.0, 2.0]))
             #print('reward', rewards)
 
 
@@ -206,7 +214,6 @@ class VectorizedSampler(BaseSampler):
         logger.record_tabular("PolicyExecTime", policy_time)
         logger.record_tabular("EnvExecTime", env_time)
         logger.record_tabular("ProcessExecTime", process_time)
-
 
 
         return paths
