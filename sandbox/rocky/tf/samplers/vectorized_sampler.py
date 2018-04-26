@@ -112,13 +112,13 @@ class VectorizedSampler(BaseSampler):
 
 
                         ##### TODO: Temporary tests
-                        #if itr < 90:
-                        #    rewards =  [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) for next_obs in next_obses]
-                        #else:
-                        #    rewards = rewards
+                        if itr < 40:
+                            rewards =  rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
+                        else:
+                            rewards = rewards
 
                         # TODO us this again:
-                        rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
+                        #rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
                         #print((itr+1)**decay_entr)
                         #rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise)  for next_obs in next_obses]
 
