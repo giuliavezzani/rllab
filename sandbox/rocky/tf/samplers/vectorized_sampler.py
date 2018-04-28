@@ -54,7 +54,7 @@ class VectorizedSampler(BaseSampler):
         policy = self.algo.policy
         import time
         while n_samples < self.algo.batch_size:
-            #if old_paths == None:
+
             t = time.time()
             policy.reset(dones)
             actions, agent_infos = policy.get_actions(obses)
@@ -65,15 +65,10 @@ class VectorizedSampler(BaseSampler):
             env_time += time.time() - t
             obs_bottleneck = []
 
-
-            ### Rewards for the point mass in exploration are 0.0
             scale = density_model.scale
             decay_entr = density_model.decay_entr
 
             if reward_type == 'state_entropy':
-                #import IPython
-                #IPython.embed()
-
 
                 if (mask_state == "objects"):
                     self.mask_state_vect = np.zeros(14)
@@ -94,34 +89,31 @@ class VectorizedSampler(BaseSampler):
 
                 rewards_real = np.zeros(shape=rewards.shape)
 
-
-                #for l in range(len(next_obses)):
                 if name_density_model == 'vae':
                     curr_noise = np.random.normal(size=(1, density_model.hidden_size))
                     if (mask_state == "objects" or mask_state == "one-object" or mask_state == "com"):
-                        #if rewards[l] == -10:
                         rewards_real= rewards
-
                         rewards = rewards * scale +  [density_model.get_density(next_obs[self.mask_state_vect].reshape(1, next_obs[self.mask_state_vect].shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
-                        #rewards = rewards * scale +  [density_model.get_density(next_obs[self.mask_state_vect].reshape(1, next_obs[self.mask_state_vect].shape[0]), curr_noise)  for next_obs in next_obses]
-                        #elif rewards[l] == 0:
-                            #rewards[l] += density_model.get_density(next_obses[l][self.mask_state_vect].reshape(1, next_obses[l][self.mask_state_vect].shape[0]), curr_noise) * scale
+
                     else:
-                        #elif rewards[l] == 0:
                         rewards_real= rewards
 
 
-                        ##### TODO: Temporary tests
-                        if itr < 40:
-                            rewards =  rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
-                        else:
-                            rewards = rewards
+                        ##### TODO: Option 1: switch after iter
+                        #if itr < 40:
+                        #    rewards =  rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
+                        #else:
+                        #    rewards = rewards
 
-                        # TODO us this again:
-                        #rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
-                        #print((itr+1)**decay_entr)
-                        #rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise)  for next_obs in next_obses]
+                        #### TODO: Option 2: scale proportional to the rewards
+                        #if np.linalg.norm(rewards) == 0:
+                        ##    rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
+                        #else:
+                        #    rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses] / (np.linalg.norm(rewards) * scale)
 
+
+                        # TODO Option 0: standard way
+                        rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
 
                 else:
 
@@ -165,13 +157,8 @@ class VectorizedSampler(BaseSampler):
                     ro_new = np.exp(-new_density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise))
                     rewards[l] += (ro_new - ro) / ro * (1 - ro_new)
 
-                #import IPython
-                #IPython.embed()
             else:
                 rewards_real = rewards
-            #    for l in range(len(next_obses)):
-            #        rewards[l] =  -np.linalg.norm(next_obses[l][0:2] - np.array([2.0, 2.0]))
-            #print('reward', rewards)
 
 
             t = time.time()
@@ -211,7 +198,6 @@ class VectorizedSampler(BaseSampler):
                     ))
                     n_samples += len(running_paths[idx]["rewards"])
                     running_paths[idx] = None
-            #print(n_samples)
 
             process_time += time.time() - t
             pbar.inc(len(obses))

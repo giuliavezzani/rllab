@@ -210,9 +210,12 @@ class BatchPolopt(RLAlgorithm):
                             samples_data_coll.append([samples[self.mask_state_vect] for samples in samples_data['observations']])
                         else:
 
-                            if samples_data['observations'].shape[0] > 1000:
+                            if samples_data['observations'].shape[0] > 10000:
 
                                 samples_data_coll.append(samples_data['observations'][0:-1:50][0:1000])
+                            elif samples_data['observations'].shape[0] > 1000:
+
+                                samples_data_coll.append(samples_data['observations'][0:-1:5][0:1000])
                             else:
                                 samples_data_coll.append(samples_data['observations'])
                     ## Using the learnt representation
@@ -233,7 +236,7 @@ class BatchPolopt(RLAlgorithm):
                         self.density_model.train(self.args_density_model, itr)
 
                         print('Density model trained')
-                
+
 ################################ Pseudo count#################################################
                 if self.reward_type == 'pseudo-count':
                     new_density = copy.copy(self.density_model)
@@ -306,7 +309,7 @@ class BatchPolopt(RLAlgorithm):
 
                 if np.mod(itr, self.gap) == 0:
                     observations.append(samples_data['observations'])
-                    pickle.dump(observations, open(self.log_dir+'/observations.pkl', 'wb'))
+                    #pickle.dump(observations, open(self.log_dir+'/observations.pkl', 'wb'))
                     rewards_real.append(samples_data['rewards_real'])
 
                     pickle.dump(rewards_real, open(self.log_dir+'/rewards_real.pkl', 'wb'))
