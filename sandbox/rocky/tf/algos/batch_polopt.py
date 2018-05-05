@@ -44,6 +44,7 @@ class BatchPolopt(RLAlgorithm):
             log_dir=None,
             gap=1,
             density_model=None,
+            density_model_aux=None,
             args_density_model= None,
             reward_type = 'std',
             name_density_model = 'vae',
@@ -54,6 +55,7 @@ class BatchPolopt(RLAlgorithm):
             graph = None,
             file_network = None,
             file_model = None,
+            iter_switch = None,
             **kwargs
     ):
         """
@@ -97,6 +99,7 @@ class BatchPolopt(RLAlgorithm):
         self.log_dir = log_dir
         self.gap = gap
         self.density_model  = density_model
+        self.density_model_aux = density_model_aux
         self.args_density_model  = args_density_model
         self.name_density_model  = name_density_model
         self.reward_type = reward_type
@@ -106,6 +109,7 @@ class BatchPolopt(RLAlgorithm):
         self.bottleneck_size = bottleneck_size
         self.file_network = file_network
         self.file_model = file_model
+        self.iter_switch = iter_switch
 
         if self.store_paths:
             logger.set_snapshot_dir(self.log_dir)
@@ -128,8 +132,8 @@ class BatchPolopt(RLAlgorithm):
     def shutdown_worker(self):
         self.sampler.shutdown_worker()
 
-    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, new_density_model=None, old_paths=None):
-        return self.sampler.obtain_samples(itr, density_model, reward_type, name_density_model, mask_state,  new_density_model, old_paths)
+    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, iter_switch=None, new_density_model=None, old_paths=None):
+        return self.sampler.obtain_samples(itr, density_model, reward_type, name_density_model, mask_state, iter_switch, new_density_model, old_paths)
 
     def process_samples(self, itr, paths):
         return self.sampler.process_samples(itr, paths)
@@ -165,13 +169,19 @@ class BatchPolopt(RLAlgorithm):
         samples_data_coll = []
         self.density_model.scale = self.args_density_model.scale
         self.density_model.decay_entr = self.args_density_model.decay_entropy
+        if self.density_model_aux is not None:
+            self.density_model_aux.scale = self.args_density_model.scale
+            self.density_model_aux.decay_entr = self.args_density_model.decay_entropy
 
         for itr in range(self.start_itr, self.n_itr):
             itr_start_time = time.time()
             with logger.prefix('itr #%d | ' % itr):
                 logger.log("Obtaining samples...")
 
-                paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state)
+                if itr < self.iter_switch:
+                    paths = self.obtain_samples(itr=itr, density_model=self.density_model_aux, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, iter_switch=self.iter_switch)
+                else:
+                    paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, iter_switch=self.iter_switch)
                 logger.log("Processing samples...")
                 samples_data = self.process_samples(itr, paths)
                 logger.log("Logging diagnostics...")
@@ -192,7 +202,7 @@ class BatchPolopt(RLAlgorithm):
                                 self.mask_state_vect[l] = 3 + l
 
                             self.mask_state_vect = self.mask_state_vect.astype(int)
-                        elif (self.mask_state == "one-object"):
+                        elif (self.mask_state == "one-object") or (self.mask_state == "mix"):
                             self.mask_state_vect = np.zeros(2)
                             for l in range(2):
                                 self.mask_state_vect[l] = 3 + l
@@ -204,10 +214,19 @@ class BatchPolopt(RLAlgorithm):
                             self.mask_state_vect = self.mask_state_vect.astype(int)
 
 
+
                         if self.use_old_data == 'no':
                             samples_data_coll = []
                         if (self.mask_state == "objects") or (self.mask_state == "one-object") or (self.mask_state == "com"):
                             samples_data_coll.append([samples[self.mask_state_vect] for samples in samples_data['observations']])
+                        elif (self.mask_state == "mix"):
+                            if itr < self.iter_switch:
+                                if samples_data['observations'].shape[0] > self.batch_size:
+                                    samples_data_coll.append(samples_data['observations'][0:self.batch_size])
+                                else:
+                                    samples_data_coll.append(samples_data['observations'])
+                            else:
+                                samples_data_coll.append([samples[self.mask_state_vect] for samples in samples_data['observations']])
                         else:
                             ## TODO changes here
                             #if samples_data['observations'].shape[0] > 10000:
@@ -235,14 +254,20 @@ class BatchPolopt(RLAlgorithm):
                         ## TODO: Temporary: no reinit (no old data test)
                         ## Let's try to reinitialize everytime
                         #self.density_model.init_opt()
-                        self.density_model.train(self.args_density_model, itr)
+                        if self.mask_state == "mix" or self.mask_state == "mix-nn":
+                            if itr < self.iter_switch:
+                                self.density_model_aux.train(self.args_density_model, itr)
+                            else:
+                                self.density_model.train(self.args_density_model, itr)
+                        else:
+                            self.density_model.train(self.args_density_model, itr)
 
                         print('Density model trained')
 
 ################################ Pseudo count#################################################
                 if self.reward_type == 'pseudo-count':
                     new_density = copy.copy(self.density_model)
-                    paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state)
+                    paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, iter_switch=self.iter_switch)
                     logger.log("Processing samples...")
                     samples_data = self.process_samples(itr, paths)
                     logger.log("Logging diagnostics...")

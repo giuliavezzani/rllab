@@ -38,7 +38,7 @@ class VectorizedSampler(BaseSampler):
     def shutdown_worker(self):
         self.vec_env.terminate()
 
-    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, new_density_model=None, old_paths=None):
+    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, iter_switch, new_density_model=None, old_paths=None):
         logger.log("Obtaining samples for iteration %d..." % itr)
         paths = []
         n_samples = 0
@@ -75,7 +75,7 @@ class VectorizedSampler(BaseSampler):
                     for l in range(14):
                         self.mask_state_vect[l] = 3 + l
                     self.mask_state_vect = self.mask_state_vect.astype(int)
-                elif (mask_state == "one-object"):
+                elif (mask_state == "one-object") or (mask_state == "mix"):
                     self.mask_state_vect = np.zeros(2)
                     for l in range(2):
                         self.mask_state_vect[l] = 3 + l
@@ -94,7 +94,14 @@ class VectorizedSampler(BaseSampler):
                     if (mask_state == "objects" or mask_state == "one-object" or mask_state == "com"):
                         rewards_real= rewards
                         rewards = rewards * scale +  [density_model.get_density(next_obs[self.mask_state_vect].reshape(1, next_obs[self.mask_state_vect].shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
+                    elif (mask_state == "mix"):
+                        if itr < iter_switch:
+                            rewards_real= rewards
+                            rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
+                        else:
+                            rewards_real= rewards
 
+                            rewards = rewards * scale +  [density_model.get_density(next_obs[self.mask_state_vect].reshape(1, next_obs[self.mask_state_vect].shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
                     else:
                         rewards_real= rewards
 
@@ -124,7 +131,7 @@ class VectorizedSampler(BaseSampler):
                 for l in range(len(next_obses)):
                     rewards_real[l]= rewards[l]
                     rewards[l] = rewards[l] * scale -np.log(policy.get_prob(actions[l], agent_infos['mean'][l], agent_infos['log_std'][l]))
-                    
+
             elif reward_type == 'discrete':
                 self._dim_space = 20
                 self._count_space = np.zeros(shape=(self._dim_space+1, self._dim_space+1))
