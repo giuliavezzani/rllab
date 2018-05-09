@@ -178,10 +178,14 @@ class BatchPolopt(RLAlgorithm):
             with logger.prefix('itr #%d | ' % itr):
                 logger.log("Obtaining samples...")
 
-                if itr < self.iter_switch:
-                    paths = self.obtain_samples(itr=itr, density_model=self.density_model_aux, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, iter_switch=self.iter_switch)
+                if self.mask_state == "mix" or self.mask_state == "mix-nn":
+                    if itr < self.iter_switch:
+                        paths = self.obtain_samples(itr=itr, density_model=self.density_model_aux, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, iter_switch=self.iter_switch)
+                    else:
+                        paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, iter_switch=self.iter_switch)
                 else:
                     paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, iter_switch=self.iter_switch)
+                    
                 logger.log("Processing samples...")
                 samples_data = self.process_samples(itr, paths)
                 logger.log("Logging diagnostics...")

@@ -63,12 +63,12 @@ class VectorizedSampler(BaseSampler):
             t = time.time()
             next_obses, rewards, dones, env_infos = self.vec_env.step(actions)
             env_time += time.time() - t
-            obs_bottleneck = []
-
-            scale = density_model.scale
-            decay_entr = density_model.decay_entr
+            obs_bottleneck = []        
 
             if reward_type == 'state_entropy':
+
+                scale = density_model.scale
+                decay_entr = density_model.decay_entr
 
                 if (mask_state == "objects"):
                     self.mask_state_vect = np.zeros(14)

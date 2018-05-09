@@ -420,6 +420,9 @@ class BaseConvLayer(Layer):
         else:
             self.nonlinearity = nonlinearity
 
+
+
+
         if n is None:
             n = len(self.input_shape) - 2
         elif n != len(self.input_shape) - 2:
@@ -434,6 +437,11 @@ class BaseConvLayer(Layer):
         self.untie_biases = untie_biases
 
         self.pad = pad
+
+
+        print('num_filter_size', self.filter_size)
+        print('self.input_shape', self.stride)
+
 
         if pad == 'SAME':
             if any(s % 2 == 0 for s in self.filter_size):

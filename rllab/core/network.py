@@ -17,9 +17,12 @@ def wrapped_conv(*args, **kwargs):
     copy = dict(kwargs)
     copy.pop("image_shape", None)
     copy.pop("filter_shape", None)
-    assert copy.pop("filter_flip", False)
+    copy.pop("filter_flip", False)
+    #assert copy.pop("filter_flip", False)
+    print(args)
+    print(kwargs)
 
-    input, W, input_shape, get_W_shape = args
+    input, W, input_shape, get_W_shape = kwargs
     if theano.config.device == 'cpu':
         return theano.tensor.nnet.conv2d(*args, **kwargs)
     try:

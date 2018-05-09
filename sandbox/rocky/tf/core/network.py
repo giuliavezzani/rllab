@@ -98,6 +98,7 @@ class ConvNetwork(LayersPowered, Serializable):
         hidden_sizes: a list of numbers of hidden units for all fc layers
         """
         with tf.variable_scope(name):
+            print('in shape', input_shape)
             if input_layer is not None:
                 l_in = input_layer
                 l_hid = l_in
@@ -121,6 +122,8 @@ class ConvNetwork(LayersPowered, Serializable):
                     conv_strides,
                     conv_pads,
             ):
+
+
                 l_hid = L.Conv2DLayer(
                     l_hid,
                     num_filters=conv_filter,
