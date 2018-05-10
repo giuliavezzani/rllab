@@ -217,6 +217,8 @@ class MujocoEnv(Env):
             viewer = self.get_viewer()
             viewer.loop_once()
             # self.get_viewer(config=config).render()
+            #width, height = 500, 500
+            #data = self.get_viewer().read_pixels(width, height, depth=False)
             data, width, height = self.get_viewer().get_image()
             return np.fromstring(data, dtype='uint8').reshape(height, width, 3)[::-1,:,:]
         if close:

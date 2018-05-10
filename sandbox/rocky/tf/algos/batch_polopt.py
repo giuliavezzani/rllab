@@ -121,7 +121,8 @@ class BatchPolopt(RLAlgorithm):
             #     sampler_cls = BatchSampler
         if sampler_args is None:
             sampler_args = dict()
-        self.sampler = sampler_cls(self, **sampler_args)
+            
+            self.sampler = sampler_cls(self, **sampler_args)
 
         if self.file_model == None:
             self.init_opt()
@@ -144,10 +145,11 @@ class BatchPolopt(RLAlgorithm):
             sess = tf.Session()
             sess.__enter__()
 
-        if self.file_model is not None:
+        """if self.file_model is not None:
             import joblib
             self.policy = joblib.load(self.file_model)['policy']
             self.init_opt()
+
                 # initialize uninitialized vars  (only initialize vars that were not loaded)
             uninit_vars = []
             for var in tf.global_variables():
@@ -158,7 +160,9 @@ class BatchPolopt(RLAlgorithm):
                     uninit_vars.append(var)
             sess.run(tf.variables_initializer(uninit_vars))
         else:
-            sess.run(tf.global_variables_initializer())
+            sess.run(tf.global_variables_initializer())"""
+        #if self.file_model is not None:
+        #    unini
 
         self.start_worker()
         start_time = time.time()
@@ -185,7 +189,7 @@ class BatchPolopt(RLAlgorithm):
                         paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, iter_switch=self.iter_switch)
                 else:
                     paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, iter_switch=self.iter_switch)
-                    
+
                 logger.log("Processing samples...")
                 samples_data = self.process_samples(itr, paths)
                 logger.log("Logging diagnostics...")

@@ -325,3 +325,5 @@ class MjViewer(object):
         mjlib.mjr_freeContext(byref(self.con))
         mjlib.mjv_freeObjects(byref(self.objects))
         self.running = False
+
+    
