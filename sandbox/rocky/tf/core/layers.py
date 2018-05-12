@@ -162,7 +162,7 @@ class Layer(object):
 
     def add_param(self, spec, shape, name, **kwargs):
         param = self.add_param_plain(spec, shape, name, **kwargs)
-        if name is not None and name.startswith("W") and self.weight_normalization:
+        if name is not None and name.startswith("weights") and self.weight_normalization:
             # Hacky: check if the parameter is a weight matrix. If so, apply weight normalization
             if len(param.get_shape()) == 2:
                 v = param
@@ -341,7 +341,7 @@ class ParamLayer(Layer):
         self.param = self.add_param(
             param,
             (num_units,),
-            name="param",
+            name="stds",
             trainable=trainable
         )
 
@@ -384,11 +384,11 @@ class DenseLayer(Layer):
 
         num_inputs = int(np.prod(self.input_shape[1:]))
 
-        self.W = self.add_param(W, (num_inputs, num_units), name="W")
+        self.W = self.add_param(W, (num_inputs, num_units), name="weights")
         if b is None:
             self.b = None
         else:
-            self.b = self.add_param(b, (num_units,), name="b", regularizable=False)
+            self.b = self.add_param(b, (num_units,), name="biases", regularizable=False)
 
     def get_output_shape_for(self, input_shape):
         return (input_shape[0], self.num_units)
@@ -448,7 +448,7 @@ class BaseConvLayer(Layer):
                 raise NotImplementedError(
                     '`same` padding requires odd filter size.')
 
-        self.W = self.add_param(W, self.get_W_shape(), name="W")
+        self.W = self.add_param(W, self.get_W_shape(), name="weights")
         if b is None:
             self.b = None
         else:
@@ -456,7 +456,7 @@ class BaseConvLayer(Layer):
                 biases_shape = self.output_shape[1:3] + (num_filters,)  # + self.output_shape[2:]
             else:
                 biases_shape = (num_filters,)
-            self.b = self.add_param(b, biases_shape, name="b",
+            self.b = self.add_param(b, biases_shape, name="biases",
                                     regularizable=False)
 
     def get_W_shape(self):
@@ -545,6 +545,22 @@ def pool_output_length(input_length, pool_size, stride, pad):
         return int(np.ceil(float(input_length) / float(stride)))
 
     return int(np.ceil(float(input_length - pool_size + 1) / float(stride)))
+
+class LocalRespNormLayer(Layer):
+    def __init__(self, incoming, alpha, k, beta, n, **kwargs):
+        super(LocalRespNormLayer, self).__init__(incoming, **kwargs)
+
+        self.alpha = alpha
+        self.k = k
+        self.beta = beta
+        self.n = n
+
+    def get_output_for(self, input, **kwargs):
+        return tf.nn.lrn(input, self.n, bias=self.k, alpha=self.alpha, beta=self.beta,
+                            name='norm1')
+
+    def get_output_shape_for(self, input_shape):
+        return tuple(input_shape)
 
 
 class Pool2DLayer(Layer):

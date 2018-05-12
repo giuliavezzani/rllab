@@ -19,10 +19,10 @@ class GaussianConvBaseline(Baseline, Parameterized):
         super(GaussianConvBaseline, self).__init__(env_spec)
         if regressor_args is None:
             regressor_args = dict()
-        print(regressor_args)
+        print('baseline input', env_spec.observation_space.shape)
         self._regressor = GaussianConvRegressor(
-            input_shape=env_spec.observation_space.shape,
-            #input_shape=(84,84,3),
+            #input_shape=env_spec.observation_space.shape,
+            input_shape=(84,84,3),
             output_dim=1,
             name="vf",
             **regressor_args
@@ -30,6 +30,7 @@ class GaussianConvBaseline(Baseline, Parameterized):
 
     @overrides
     def fit(self, paths):
+
         observations = np.concatenate([p["observations"] for p in paths])
         returns = np.concatenate([p["returns"] for p in paths])
         self._regressor.fit(observations, returns.reshape((-1, 1)))

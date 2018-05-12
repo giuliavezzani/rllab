@@ -16,7 +16,7 @@ class MLP(LayersPowered, Serializable):
 
         Serializable.quick_init(self, locals())
 
-        with tf.variable_scope(name):
+        with tf.variable_scope("function-0"):
             if input_layer is None:
                 l_in = L.InputLayer(shape=(None,) + input_shape, input_var=input_var, name="input")
             else:
@@ -30,7 +30,8 @@ class MLP(LayersPowered, Serializable):
                     l_hid,
                     num_units=hidden_size,
                     nonlinearity=hidden_nonlinearity,
-                    name="hidden_%d" % idx,
+                    #name="hidden_%d" % idx,
+                    name="local%d" % (idx+3),
                     W=hidden_W_init,
                     b=hidden_b_init,
                     weight_normalization=weight_normalization
@@ -131,12 +132,40 @@ class ConvNetwork(LayersPowered, Serializable):
                     stride=(stride, stride),
                     pad=pad,
                     nonlinearity=hidden_nonlinearity,
-                    name="conv_hidden_%d" % idx,
+                    name="conv%d" % (idx+1),
                     weight_normalization=weight_normalization,
                 )
                 if batch_normalization:
                     l_hid = L.batch_norm(l_hid)
 
+                ###NOTE added max_pool
+                """if idx == 0:
+                    print(idx)
+                    l_hid = L.LocalRespNormLayer(
+                            l_hid,
+                            alpha=0.001/9,
+                            k=1,
+                            beta=0.75,
+                            n=4,
+                    )"""
+
+                #l_hid = L.Pool2DLayer(
+                #        l_hid,
+                #        pool_size= 3,
+                #        stride=(2, 2),
+                #        pad='SAME',
+                #)
+                """if idx > 0:
+                    print(idx)
+                    l_hid = L.LocalRespNormLayer(
+                            l_hid,
+                            alpha=0.001/9,
+                            k=1,
+                            beta=0.75,
+                            n=4,
+                    )"""
+
+        with tf.variable_scope("function-0"):
             if output_nonlinearity == L.spatial_expected_softmax:
                 assert len(hidden_sizes) == 0
                 assert output_dim == conv_filters[-1] * 2
@@ -149,7 +178,7 @@ class ConvNetwork(LayersPowered, Serializable):
                         l_hid,
                         num_units=hidden_size,
                         nonlinearity=hidden_nonlinearity,
-                        name="hidden_%d" % idx,
+                        name="local%d" % (idx+3),
                         W=hidden_W_init,
                         b=hidden_b_init,
                         weight_normalization=weight_normalization,
@@ -171,7 +200,7 @@ class ConvNetwork(LayersPowered, Serializable):
             self._l_out = l_out
             # self._input_var = l_in.input_var
 
-        LayersPowered.__init__(self, l_out)
+            LayersPowered.__init__(self, l_out)
 
     @property
     def input_layer(self):

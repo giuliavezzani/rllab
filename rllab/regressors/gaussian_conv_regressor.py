@@ -77,6 +77,7 @@ class GaussianConvRegressor(LasagnePowered):
         self._optimizer = optimizer
 
         self.input_shape = input_shape
+        print('input shape in conv regressorr', self.input_shape)
         if mean_network is None:
             mean_network = ConvNetwork(
                 name="mean_network",
@@ -119,6 +120,7 @@ class GaussianConvRegressor(LasagnePowered):
         LasagnePowered.__init__(self, [l_mean, l_log_std])
 
         xs_var = mean_network.input_layer.input_var
+
         ys_var = TT.matrix("ys")
         old_means_var = TT.matrix("old_means")
         old_log_stds_var = TT.matrix("old_log_stds")
@@ -143,6 +145,9 @@ class GaussianConvRegressor(LasagnePowered):
             name="y_std",
             broadcastable=(True, False)
         )
+
+        import IPython
+        IPython.embed()
 
         normalized_xs_var = (xs_var - x_mean_var) / x_std_var
         normalized_ys_var = (ys_var - y_mean_var) / y_std_var

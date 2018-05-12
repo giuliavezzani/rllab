@@ -121,7 +121,7 @@ class BatchPolopt(RLAlgorithm):
             #     sampler_cls = BatchSampler
         if sampler_args is None:
             sampler_args = dict()
-            
+
             self.sampler = sampler_cls(self, **sampler_args)
 
         if self.file_model == None:
@@ -195,6 +195,7 @@ class BatchPolopt(RLAlgorithm):
                 logger.log("Logging diagnostics...")
                 self.log_diagnostics(paths)
                 ### If we use pseudo-count the policy should updated later
+
                 if not self.reward_type == 'pseudo-count':
                     logger.log("Optimizing policy...")
                     self.optimize_policy(itr, samples_data)
