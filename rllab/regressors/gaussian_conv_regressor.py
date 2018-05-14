@@ -146,9 +146,6 @@ class GaussianConvRegressor(LasagnePowered):
             broadcastable=(True, False)
         )
 
-        import IPython
-        IPython.embed()
-
         normalized_xs_var = (xs_var - x_mean_var) / x_std_var
         normalized_ys_var = (ys_var - y_mean_var) / y_std_var
 

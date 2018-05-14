@@ -101,6 +101,7 @@ class FirstOrderOptimizer(Serializable):
 
         dataset = BatchDataset(inputs, self._batch_size, extra_inputs=extra_inputs)
 
+
         sess = tf.get_default_session()
 
         for epoch in range(self._max_epochs):
@@ -109,6 +110,7 @@ class FirstOrderOptimizer(Serializable):
                 progbar = pyprind.ProgBar(len(inputs[0]))
 
             for batch in dataset.iterate(update=True):
+                print('updating loss')
                 sess.run(self._train_op, dict(list(zip(self._input_vars, batch))))
                 if self._verbose:
                     progbar.update(len(batch[0]))
