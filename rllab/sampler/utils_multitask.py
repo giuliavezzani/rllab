@@ -4,7 +4,7 @@ import time
 
 
 def rollout(env, agent,  max_path_length=np.inf, animated=False, speedup=1,
-            always_return_paths=False):
+            always_return_paths=False, task=0):
     observations = []
     actions = []
     rewards = []
@@ -19,11 +19,11 @@ def rollout(env, agent,  max_path_length=np.inf, animated=False, speedup=1,
         env.render()
     while path_length < max_path_length:
 
-        a, agent_info = agent.get_action(o)
+        a, agent_info = agent.get_action(o, task)
         ## NOTE TEMPORARY FOR COMPARISON
 
         next_o, r, d, env_info = env.step(a)
-        #state = env.wrapped_env.wrapped_env.get_current_states()
+        state = env.wrapped_env.wrapped_env.get_current_states()
         #com = env.get_body_com("torso")
         # ref_x = x + self._init_torso_x
         #print('pos to goal ', np.sum(np.abs(com[:2] - env.goals[env._goal_idx])))
@@ -36,7 +36,7 @@ def rollout(env, agent,  max_path_length=np.inf, animated=False, speedup=1,
         path_length += 1
 
         ## NOTE
-        #states.append(state)
+        states.append(state)
 
         if d:
             break
@@ -58,5 +58,5 @@ def rollout(env, agent,  max_path_length=np.inf, animated=False, speedup=1,
         images=tensor_utils.stack_tensor_list(images),
         agent_infos=tensor_utils.stack_tensor_dict_list(agent_infos),
         env_infos=tensor_utils.stack_tensor_dict_list(env_infos),
-        #states=tensor_utils.stack_tensor_list(states),
+        states=tensor_utils.stack_tensor_list(states),
     )
