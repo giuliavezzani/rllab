@@ -70,7 +70,7 @@ class DiagonalGaussian(Distribution):
         means = dist_info_vars["mean"]
         log_stds = dist_info_vars["log_std"]
         zs = (x_var - means) / tf.exp(log_stds)
-        return - tf.reduce_sum(log_stds, axis=-1) - \
+        return  - tf.reduce_sum(log_stds, axis=-1) - \
                0.5 * tf.reduce_sum(tf.square(zs), axis=-1) - \
                0.5 * self.dim * np.log(2 * np.pi)
 

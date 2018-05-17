@@ -247,10 +247,15 @@ class ConvNetworkMultiHead(LayersPowered, Serializable):
                     nonlinearity=hidden_nonlinearity,
                     name="conv%d" % (idx+1),
                     weight_normalization=weight_normalization,
+                    b=hidden_b_init,
                 )
 
                 if batch_normalization:
                     l_hid = L.batch_norm(l_hid)
+
+
+
+
 
             l_shared = l_hid
             self._l_out_shared = l_shared
@@ -258,7 +263,7 @@ class ConvNetworkMultiHead(LayersPowered, Serializable):
         self._l_out = []
 
         for t in range(num_tasks):
-            with tf.variable_scope("function-"+str(t)):
+            with tf.variable_scope(name+"/function-"+str(t)):
                 if output_nonlinearity == L.spatial_expected_softmax:
                     assert len(hidden_sizes) == 0
                     assert output_dim == conv_filters[-1] * 2
@@ -266,6 +271,7 @@ class ConvNetworkMultiHead(LayersPowered, Serializable):
                     l_out = L.SpatialExpectedSoftmaxLayer(l_shared)
                 else:
                     l_hid = L.flatten(l_shared, name="conv_flatten")
+
                     #self._l_out_shared = l_hid
                     for idx, hidden_size in enumerate(hidden_sizes):
 
