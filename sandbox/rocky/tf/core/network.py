@@ -225,6 +225,8 @@ class ConvNetworkMultiHead(LayersPowered, Serializable):
                 l_in = L.InputLayer(shape=(None,) + input_shape, input_var=input_var, name="input")
                 l_hid = l_in
 
+            #self._l_out_shared = l_hid
+
             if batch_normalization:
                 l_hid = L.batch_norm(l_hid)
             for idx, conv_filter, filter_size, stride, pad in zip(
@@ -246,11 +248,12 @@ class ConvNetworkMultiHead(LayersPowered, Serializable):
                     name="conv%d" % (idx+1),
                     weight_normalization=weight_normalization,
                 )
+
                 if batch_normalization:
                     l_hid = L.batch_norm(l_hid)
 
-
-            self._l_out_shared = l_hid
+            l_shared = l_hid
+            self._l_out_shared = l_shared
 
         self._l_out = []
 
@@ -260,10 +263,12 @@ class ConvNetworkMultiHead(LayersPowered, Serializable):
                     assert len(hidden_sizes) == 0
                     assert output_dim == conv_filters[-1] * 2
                     l_hid.nonlinearity = tf.identity
-                    l_out = L.SpatialExpectedSoftmaxLayer(l_hid)
+                    l_out = L.SpatialExpectedSoftmaxLayer(l_shared)
                 else:
-                    l_hid = L.flatten(l_hid, name="conv_flatten")
+                    l_hid = L.flatten(l_shared, name="conv_flatten")
+                    #self._l_out_shared = l_hid
                     for idx, hidden_size in enumerate(hidden_sizes):
+
                         l_hid = L.DenseLayer(
                             l_hid,
                             num_units=hidden_size,
@@ -273,6 +278,7 @@ class ConvNetworkMultiHead(LayersPowered, Serializable):
                             b=hidden_b_init,
                             weight_normalization=weight_normalization,
                         )
+
                         if batch_normalization:
                             l_hid = L.batch_norm(l_hid)
                     l_out = L.DenseLayer(

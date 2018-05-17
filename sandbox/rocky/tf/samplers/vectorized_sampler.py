@@ -42,6 +42,7 @@ class VectorizedSampler(BaseSampler):
         logger.log("Obtaining samples for iteration %d..." % itr)
         paths = []
         n_samples = 0
+
         obses = self.vec_env.reset()
         dones = np.asarray([True] * self.vec_env.num_envs)
         running_paths = [None] * self.vec_env.num_envs
@@ -57,6 +58,7 @@ class VectorizedSampler(BaseSampler):
 
             t = time.time()
             policy.reset(dones)
+
             actions, agent_infos = policy.get_actions(obses)
 
             policy_time += time.time() - t
