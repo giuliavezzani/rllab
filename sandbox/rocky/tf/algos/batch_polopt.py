@@ -190,6 +190,7 @@ class BatchPolopt(RLAlgorithm):
                 else:
                     paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, iter_switch=self.iter_switch)
 
+
                 logger.log("Processing samples...")
                 samples_data = self.process_samples(itr, paths)
                 logger.log("Logging diagnostics...")
@@ -346,15 +347,13 @@ class BatchPolopt(RLAlgorithm):
                 if np.mod(itr, self.gap) == 0:
                     observations.append(samples_data['observations'])
                     #pickle.dump(observations, open(self.log_dir+'/observations.pkl', 'wb'))
-                    rewards_real.append(samples_data['rewards_real'])
+                    #rewards_real.append(samples_data['rewards_real'])
 
-                    pickle.dump(rewards_real, open(self.log_dir+'/rewards_real.pkl', 'wb'))
+                    #pickle.dump(rewards_real, open(self.log_dir+'/rewards_real.pkl', 'wb'))
                     rewards.append(samples_data['rewards'])
                     pickle.dump(rewards, open(self.log_dir+'/rewards.pkl', 'wb'))
                     returns.append(samples_data['returns'])
                     pickle.dump(returns, open(self.log_dir+'/returns.pkl', 'wb'))
-
-
 
         self.shutdown_worker()
         if created_session:
