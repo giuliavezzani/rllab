@@ -84,7 +84,7 @@ class ConvNetwork(LayersPowered, Serializable):
                  hidden_sizes, hidden_nonlinearity, output_nonlinearity,
                  hidden_W_init=L.XavierUniformInitializer(), hidden_b_init=tf.zeros_initializer(),
                  output_W_init=L.XavierUniformInitializer(), output_b_init=tf.zeros_initializer(),
-                 input_var=None, input_layer=None, batch_normalization=False, weight_normalization=False):
+                 input_var=None, input_layer=None, batch_normalization=False, weight_normalization=False, trainable=True):
         Serializable.quick_init(self, locals())
         """
         A network composed of several convolution layers followed by some fc layers.
@@ -133,7 +133,10 @@ class ConvNetwork(LayersPowered, Serializable):
                     nonlinearity=hidden_nonlinearity,
                     name="conv%d" % (idx+1),
                     weight_normalization=weight_normalization,
+                    trainable=trainable,
                 )
+
+                
                 if batch_normalization:
                     l_hid = L.batch_norm(l_hid)
 
@@ -209,6 +212,7 @@ class ConvNetworkMultiHead(LayersPowered, Serializable):
         hidden_nonlinearity: a nonlinearity from tf.nn, shared by all conv and fc layers
         hidden_sizes: a list of numbers of hidden units for all fc layers
         """
+
         with tf.variable_scope(name):
             print('in shape', input_shape)
             if input_layer is not None:
@@ -254,16 +258,14 @@ class ConvNetworkMultiHead(LayersPowered, Serializable):
                     l_hid = L.batch_norm(l_hid)
 
 
-
-
-
             l_shared = l_hid
             self._l_out_shared = l_shared
 
         self._l_out = []
 
         for t in range(num_tasks):
-            with tf.variable_scope(name+"/function-"+str(t)):
+            #with tf.variable_scope(name+"/function-"+str(t)):
+            with tf.variable_scope("function-"+str(t)):
                 if output_nonlinearity == L.spatial_expected_softmax:
                     assert len(hidden_sizes) == 0
                     assert output_dim == conv_filters[-1] * 2

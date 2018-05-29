@@ -124,8 +124,8 @@ class BatchPolopt(RLAlgorithm):
 
             self.sampler = sampler_cls(self, **sampler_args)
 
-        if self.file_model == None:
-            self.init_opt()
+        #if self.file_model == None:
+        self.init_opt()
 
     def start_worker(self):
         self.sampler.start_worker()
@@ -328,23 +328,24 @@ class BatchPolopt(RLAlgorithm):
                         self.optimize_policy(itr, samples_data)
 ################################ Pseudo count#################################################
 
-                logger.log("Saving snapshot...")
-                params = self.get_itr_snapshot(itr, samples_data)  # , **kwargs)
-                if self.store_paths:
-                    logger.log("Saving params...")
-                    params["paths"] = samples_data["paths"]
-                logger.save_itr_params(itr, params)
-                logger.log("Saved")
-                logger.record_tabular('Time', time.time() - start_time)
-                logger.record_tabular('ItrTime', time.time() - itr_start_time)
-                logger.dump_tabular(with_prefix=False)
-                if self.plot:
-                    rollout(self.env, self.policy, animated=True, max_path_length=self.max_path_length)
-                    if self.pause_for_plot:
-                        input("Plotting evaluation run: Press Enter to "
-                              "continue...")
-
                 if np.mod(itr, self.gap) == 0:
+                    logger.log("Saving snapshot...")
+                    params = self.get_itr_snapshot(itr, samples_data)  # , **kwargs)
+                    if self.store_paths:
+                        logger.log("Saving params...")
+                        params["paths"] = samples_data["paths"]
+                    logger.save_itr_params(itr, params)
+                    logger.log("Saved")
+                    logger.record_tabular('Time', time.time() - start_time)
+                    logger.record_tabular('ItrTime', time.time() - itr_start_time)
+                    logger.dump_tabular(with_prefix=False)
+                    if self.plot:
+                        rollout(self.env, self.policy, animated=True, max_path_length=self.max_path_length)
+                        if self.pause_for_plot:
+                            input("Plotting evaluation run: Press Enter to "
+                                  "continue...")
+
+
                     observations.append(samples_data['observations'])
                     #pickle.dump(observations, open(self.log_dir+'/observations.pkl', 'wb'))
                     #rewards_real.append(samples_data['rewards_real'])

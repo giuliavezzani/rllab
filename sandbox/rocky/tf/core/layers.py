@@ -153,6 +153,7 @@ class Layer(object):
         raise NotImplementedError
 
     def add_param_plain(self, spec, shape, name, **tags):
+
         with tf.variable_scope(self.name, reuse=self.variable_reuse):
             tags['trainable'] = tags.get('trainable', True)
             tags['regularizable'] = tags.get('regularizable', True)
@@ -410,10 +411,11 @@ class BaseConvLayer(Layer):
     def __init__(self, incoming, num_filters, filter_size, stride=1, pad="VALID",
                  untie_biases=False,
                  W=XavierUniformInitializer(), b=tf.zeros_initializer(),
-                 nonlinearity=tf.nn.relu, n=None, **kwargs):
+                 nonlinearity=tf.nn.relu, n=None, trainable=True, **kwargs):
         """
         Input is assumed to be of shape batch*height*width*channels
         """
+    
         super(BaseConvLayer, self).__init__(incoming, **kwargs)
         if nonlinearity is None:
             self.nonlinearity = tf.identity
@@ -448,7 +450,7 @@ class BaseConvLayer(Layer):
                 raise NotImplementedError(
                     '`same` padding requires odd filter size.')
 
-        self.W = self.add_param(W, self.get_W_shape(), name="weights")
+        self.W = self.add_param(W, self.get_W_shape(), name="weights", trainable=trainable)
         if b is None:
             self.b = None
         else:
@@ -457,7 +459,7 @@ class BaseConvLayer(Layer):
             else:
                 biases_shape = (num_filters,)
             self.b = self.add_param(b, biases_shape, name="biases",
-                                    regularizable=False)
+                                    regularizable=False,  trainable=trainable)
 
     def get_W_shape(self):
         """Get the shape of the weight matrix `W`.
@@ -526,10 +528,11 @@ class Conv2DLayer(BaseConvLayer):
                  pad="VALID", untie_biases=False,
                  W=XavierUniformInitializer(), b=tf.zeros_initializer(),
                  nonlinearity=tf.nn.relu,
-                 convolution=tf.nn.conv2d, **kwargs):
+                 convolution=tf.nn.conv2d,trainable=True, **kwargs):
+
         super(Conv2DLayer, self).__init__(incoming=incoming, num_filters=num_filters, filter_size=filter_size,
                                           stride=stride, pad=pad, untie_biases=untie_biases, W=W, b=b,
-                                          nonlinearity=nonlinearity, n=2, **kwargs)
+                                          nonlinearity=nonlinearity, n=2, trainable=trainable, **kwargs)
         self.convolution = convolution
 
     def convolve(self, input, **kwargs):
