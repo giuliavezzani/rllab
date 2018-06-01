@@ -16,7 +16,7 @@ class MLP(LayersPowered, Serializable):
 
         Serializable.quick_init(self, locals())
 
-        with tf.variable_scope("function-0"):
+        with tf.variable_scope(name):
             if input_layer is None:
                 l_in = L.InputLayer(shape=(None,) + input_shape, input_var=input_var, name="input")
             else:
@@ -30,8 +30,8 @@ class MLP(LayersPowered, Serializable):
                     l_hid,
                     num_units=hidden_size,
                     nonlinearity=hidden_nonlinearity,
-                    #name="hidden_%d" % idx,
-                    name="local%d" % (idx+3),
+                    name="hidden_%d" % idx,
+                    #name="local%d" % (idx+3),
                     W=hidden_W_init,
                     b=hidden_b_init,
                     weight_normalization=weight_normalization
@@ -136,7 +136,7 @@ class ConvNetwork(LayersPowered, Serializable):
                     trainable=trainable,
                 )
 
-                
+
                 if batch_normalization:
                     l_hid = L.batch_norm(l_hid)
 

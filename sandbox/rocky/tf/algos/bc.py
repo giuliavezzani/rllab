@@ -89,7 +89,9 @@ class BC(BatchPolopt):
 
             # Behavior cloning loss
             print('Summing loss over task', t)
-            surr_loss += - tf.reduce_mean(dist.log_likelihood_sym(action_var[t], dist_info_vars[t]))
+            #surr_loss += - tf.reduce_mean(dist.log_likelihood_sym(action_var[t], dist_info_vars[t]))
+
+            surr_loss +=  tf.reduce_mean(tf.square(action_var[t] - dist_info_vars[t]['mean']))
 
 
         input_list = obs_var + action_var

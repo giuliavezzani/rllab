@@ -161,8 +161,8 @@ class BatchPolopt(RLAlgorithm):
             sess.run(tf.variables_initializer(uninit_vars))
         else:
             sess.run(tf.global_variables_initializer())"""
-        #if self.file_model is not None:
-        #    unini
+
+        sess.run(tf.global_variables_initializer())
 
         self.start_worker()
         start_time = time.time()
@@ -205,54 +205,92 @@ class BatchPolopt(RLAlgorithm):
                 if self.reward_type == 'state_entropy' or self.reward_type == 'pseudo-count':
                     print('Training density model')
                     ## Using all state of hand-coded masks
-                    if self.network == None:
-                        if (self.mask_state == "objects"):
-                            self.mask_state_vect = np.zeros(14)
-                            for l in range(14):
-                                self.mask_state_vect[l] = 3 + l
+                    #if self.network == None:
+                    if (self.mask_state == "objects"):
+                        self.mask_state_vect = np.zeros(14)
+                        for l in range(14):
+                            self.mask_state_vect[l] = 3 + l
 
-                            self.mask_state_vect = self.mask_state_vect.astype(int)
-                        elif (self.mask_state == "one-object") or (self.mask_state == "mix"):
-                            self.mask_state_vect = np.zeros(2)
-                            for l in range(2):
-                                self.mask_state_vect[l] = 3 + l
-                            self.mask_state_vect = self.mask_state_vect.astype(int)
-                        elif (self.mask_state == "com"):
-                            self.mask_state_vect = np.zeros(2)
-                            for l in range(0,2):
-                                self.mask_state_vect[l] =  122 + l
-                            self.mask_state_vect = self.mask_state_vect.astype(int)
+                        self.mask_state_vect = self.mask_state_vect.astype(int)
+                    elif (self.mask_state == "one-object") or (self.mask_state == "mix"):
+                        self.mask_state_vect = np.zeros(2)
+                        for l in range(2):
+                            self.mask_state_vect[l] = 3 + l
+                        self.mask_state_vect = self.mask_state_vect.astype(int)
+                    elif (self.mask_state == "com"):
+                        self.mask_state_vect = np.zeros(2)
+                        for l in range(0,2):
+                            self.mask_state_vect[l] =  122 + l
+                        self.mask_state_vect = self.mask_state_vect.astype(int)
+
+                    elif (self.mask_state == "pusher"):
+                        self.mask_state_vect = np.zeros(2)
+                        for l in range(2):
+                            self.mask_state_vect[l] =  l
+                        self.mask_state_vect = self.mask_state_vect.astype(int)
+
+                    elif (self.mask_state == "pusher+object"):
+                        self.mask_state_vect = np.zeros(4)
+                        for l in range(2):
+                            self.mask_state_vect[l] =  l
+                        for l in range(2):
+                            self.mask_state_vect[l+2] =  3 + l
+                        self.mask_state_vect = self.mask_state_vect.astype(int)
+
+                    elif (self.mask_state == "useless"):
+                        self.mask_state_vect = np.zeros(29)
+
+                        for l in range(29):
+                            self.mask_state_vect[l] =  5 + l
+                        self.mask_state_vect = self.mask_state_vect.astype(int)
+
+                    elif (self.mask_state == "all-objects"):
+                        self.mask_state_vect = np.zeros(14)
+
+                        for l in range(14):
+                            self.mask_state_vect[l] =  3 + l
+                        self.mask_state_vect = self.mask_state_vect.astype(int)
+
+                    elif (self.mask_state == "useless-no-vel"):
+                        self.mask_state_vect = np.zeros(12)
+
+                        for l in range(12):
+                            self.mask_state_vect[l] =  5 + l
+                        self.mask_state_vect = self.mask_state_vect.astype(int)
 
 
 
-                        if self.use_old_data == 'no':
-                            samples_data_coll = []
-                        if (self.mask_state == "objects") or (self.mask_state == "one-object") or (self.mask_state == "com"):
-                            samples_data_coll.append([samples[self.mask_state_vect] for samples in samples_data['observations']])
-                        elif (self.mask_state == "mix"):
-                            if itr < self.iter_switch:
-                                if samples_data['observations'].shape[0] > self.batch_size:
-                                    samples_data_coll.append(samples_data['observations'][0:self.batch_size])
-                                else:
-                                    samples_data_coll.append(samples_data['observations'])
-                            else:
-                                samples_data_coll.append([samples[self.mask_state_vect] for samples in samples_data['observations']])
-                        else:
-                            ## TODO changes here
-                            #if samples_data['observations'].shape[0] > 10000:
+                    print('IN BATCH', self.mask_state_vect)
+                    if self.use_old_data == 'no':
+                        samples_data_coll = []
+                    if (self.mask_state == "objects") or (self.mask_state == "one-object") or (self.mask_state == "com") or (self.mask_state == "pusher") or (self.mask_state == "pusher+object") or (self.mask_state == "useless")  or (self.mask_state == "useless-no-vel"):
+                        samples_data_coll.append([samples[self.mask_state_vect] for samples in samples_data['observations']])
+                    elif (self.mask_state == "mix"):
+                        if itr < self.iter_switch:
                             if samples_data['observations'].shape[0] > self.batch_size:
                                 samples_data_coll.append(samples_data['observations'][0:self.batch_size])
-                            #elif samples_data['observations'].shape[0] > 1000:
-
-                                #samples_data_coll.append(samples_data['observations'][0:-1:5][0:1000])
                             else:
                                 samples_data_coll.append(samples_data['observations'])
-                    ## Using the learnt representation
+                        else:
+                            samples_data_coll.append([samples[self.mask_state_vect] for samples in samples_data['observations']])
                     else:
-                        with self.sess.as_default():
-                            with self.graph.as_default():
-                                samples_data_coll.append(self.sess.run(self.network._output_for_shared(self.obs_pl, task=0, reuse=tf.AUTO_REUSE),
-                                                                                    feed_dict={self.obs_pl: samples_data['observations']}))
+                        ## TODO changes here
+                        #if samples_data['observations'].shape[0] > 10000:
+
+                        if samples_data['observations'].shape[0] > self.batch_size:
+                            samples_data_coll.append(samples_data['observations'][0:self.batch_size])
+                        #elif samples_data['observations'].shape[0] > 1000:
+
+                            #samples_data_coll.append(samples_data['observations'][0:-1:5][0:1000])
+                        else:
+                            samples_data_coll.append(samples_data['observations'])
+                    ## Using the learnt representation
+                    #else:
+
+                    #    with self.sess.as_default():
+                    #        with self.graph.as_default():
+                    #            samples_data_coll.append(self.sess.run(self.network._output_for_shared(self.obs_pl, task=0, reuse=tf.AUTO_REUSE),
+                    #                                                                feed_dict={self.obs_pl: samples_data['observations']}))
 
                     self.args_density_model.obs = samples_data_coll
 
@@ -274,8 +312,62 @@ class BatchPolopt(RLAlgorithm):
 
                         print('Density model trained')
 
+                if np.mod(itr, self.gap) == 0:
+                    logger.log("Saving snapshot...")
+                    params = self.get_itr_snapshot(itr, samples_data)  # , **kwargs)
+                    if self.store_paths:
+                        logger.log("Saving params...")
+                        params["paths"] = samples_data["paths"]
+                    logger.save_itr_params(itr, params)
+                    logger.log("Saved")
+                    logger.record_tabular('Time', time.time() - start_time)
+                    logger.record_tabular('ItrTime', time.time() - itr_start_time)
+                    logger.dump_tabular(with_prefix=False)
+                    if self.plot:
+                        rollout(self.env, self.policy, animated=True, max_path_length=self.max_path_length)
+                        if self.pause_for_plot:
+                            input("Plotting evaluation run: Press Enter to "
+                                  "continue...")
+
+
+                    observations.append(samples_data['observations'])
+                    #pickle.dump(observations, open(self.log_dir+'/observations.pkl', 'wb'))
+                    rewards_real.append(samples_data['rewards_real'])
+
+                    pickle.dump(rewards_real, open(self.log_dir+'/rewards_real.pkl', 'wb'))
+                    rewards.append(samples_data['rewards'])
+                    pickle.dump(rewards, open(self.log_dir+'/rewards.pkl', 'wb'))
+                    returns.append(samples_data['returns'])
+                    pickle.dump(returns, open(self.log_dir+'/returns.pkl', 'wb'))
+
+        self.shutdown_worker()
+        if created_session:
+            sess.close()
+
+    def log_diagnostics(self, paths):
+        self.env.log_diagnostics(paths)
+        self.policy.log_diagnostics(paths)
+        self.baseline.log_diagnostics(paths)
+
+    def init_opt(self):
+        """
+        Initialize the optimization procedure. If using tensorflow, this may
+        include declaring all the variables and compiling functions
+        """
+        raise NotImplementedError
+
+    def get_itr_snapshot(self, itr, samples_data):
+        """
+        Returns all the data that should be saved in the snapshot for this
+        iteration.
+        """
+        raise NotImplementedError
+
+    def optimize_policy(self, itr, samples_data):
+        raise NotImplementedError
+
 ################################ Pseudo count#################################################
-                if self.reward_type == 'pseudo-count':
+"""                if self.reward_type == 'pseudo-count':
                     new_density = copy.copy(self.density_model)
                     paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, iter_switch=self.iter_switch)
                     logger.log("Processing samples...")
@@ -325,59 +417,5 @@ class BatchPolopt(RLAlgorithm):
                     ### If we use pseudo-count the policy should updated later
                     if not self.reward_type == 'pseudo-count':
                         logger.log("Optimizing policy...")
-                        self.optimize_policy(itr, samples_data)
+                        self.optimize_policy(itr, samples_data)"""
 ################################ Pseudo count#################################################
-
-                if np.mod(itr, self.gap) == 0:
-                    logger.log("Saving snapshot...")
-                    params = self.get_itr_snapshot(itr, samples_data)  # , **kwargs)
-                    if self.store_paths:
-                        logger.log("Saving params...")
-                        params["paths"] = samples_data["paths"]
-                    logger.save_itr_params(itr, params)
-                    logger.log("Saved")
-                    logger.record_tabular('Time', time.time() - start_time)
-                    logger.record_tabular('ItrTime', time.time() - itr_start_time)
-                    logger.dump_tabular(with_prefix=False)
-                    if self.plot:
-                        rollout(self.env, self.policy, animated=True, max_path_length=self.max_path_length)
-                        if self.pause_for_plot:
-                            input("Plotting evaluation run: Press Enter to "
-                                  "continue...")
-
-
-                    observations.append(samples_data['observations'])
-                    #pickle.dump(observations, open(self.log_dir+'/observations.pkl', 'wb'))
-                    #rewards_real.append(samples_data['rewards_real'])
-
-                    #pickle.dump(rewards_real, open(self.log_dir+'/rewards_real.pkl', 'wb'))
-                    rewards.append(samples_data['rewards'])
-                    pickle.dump(rewards, open(self.log_dir+'/rewards.pkl', 'wb'))
-                    returns.append(samples_data['returns'])
-                    pickle.dump(returns, open(self.log_dir+'/returns.pkl', 'wb'))
-
-        self.shutdown_worker()
-        if created_session:
-            sess.close()
-
-    def log_diagnostics(self, paths):
-        self.env.log_diagnostics(paths)
-        self.policy.log_diagnostics(paths)
-        self.baseline.log_diagnostics(paths)
-
-    def init_opt(self):
-        """
-        Initialize the optimization procedure. If using tensorflow, this may
-        include declaring all the variables and compiling functions
-        """
-        raise NotImplementedError
-
-    def get_itr_snapshot(self, itr, samples_data):
-        """
-        Returns all the data that should be saved in the snapshot for this
-        iteration.
-        """
-        raise NotImplementedError
-
-    def optimize_policy(self, itr, samples_data):
-        raise NotImplementedError

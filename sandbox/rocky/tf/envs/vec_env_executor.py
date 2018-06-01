@@ -27,6 +27,12 @@ class VecEnvExecutor(object):
                 self.ts[i] = 0
         return obs, rewards, dones, tensor_utils.stack_tensor_dict_list(env_infos)
 
+    def get_images(self):
+        all_results = [env.wrapped_env.wrapped_env.get_images() for env in self.envs]
+        #obs = list(map(list, list(zip(*all_results))))
+
+        return all_results
+
 
     def reset(self):
         results = [env.reset() for env in self.envs]

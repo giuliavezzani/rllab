@@ -53,6 +53,7 @@ class VectorizedSampler(BaseSampler):
         process_time = 0
 
         policy = self.algo.policy
+
         import time
         while n_samples < self.algo.batch_size:
 
@@ -64,8 +65,14 @@ class VectorizedSampler(BaseSampler):
             policy_time += time.time() - t
             t = time.time()
             next_obses, rewards, dones, env_infos = self.vec_env.step(actions)
+            if mask_state == "images":
+                images = self.vec_env.get_images()
+
+
             env_time += time.time() - t
             obs_bottleneck = []
+
+            scale = density_model.scale
 
             if reward_type == 'state_entropy':
 
@@ -88,12 +95,50 @@ class VectorizedSampler(BaseSampler):
                         self.mask_state_vect[l] =  l + 122
                     self.mask_state_vect = self.mask_state_vect.astype(int)
 
+                elif (mask_state == "pusher"):
+                    self.mask_state_vect = np.zeros(2)
+                    for l in range(2):
+                        self.mask_state_vect[l] =  l
+                    self.mask_state_vect = self.mask_state_vect.astype(int)
+
+                elif (mask_state == "pusher+object"):
+                    self.mask_state_vect = np.zeros(4)
+                    for l in range(2):
+                        self.mask_state_vect[l] =  l
+                    for l in range(2):
+                        self.mask_state_vect[l+2] =  3 + l
+                    self.mask_state_vect = self.mask_state_vect.astype(int)
+
+                elif (mask_state == "useless"):
+                    self.mask_state_vect = np.zeros(29)
+
+                    for l in range(29):
+                        self.mask_state_vect[l] =  5 + l
+                    self.mask_state_vect = self.mask_state_vect.astype(int)
+
+                elif (mask_state == "all-objects"):
+                    self.mask_state_vect = np.zeros(14)
+
+                    for l in range(14):
+                        self.mask_state_vect[l] =  3 + l
+                    self.mask_state_vect = self.mask_state_vect.astype(int)
+
+                elif (mask_state == "useless-no-vel"):
+                    self.mask_state_vect = np.zeros(12)
+
+                    for l in range(12):
+                        self.mask_state_vect[l] =  5 + l
+                    self.mask_state_vect = self.mask_state_vect.astype(int)
+
+
 
                 rewards_real = np.zeros(shape=rewards.shape)
 
+                print(self.mask_state_vect)
+
                 if name_density_model == 'vae':
                     curr_noise = np.random.normal(size=(1, density_model.hidden_size))
-                    if (mask_state == "objects" or mask_state == "one-object" or mask_state == "com"):
+                    if (mask_state == "objects" or mask_state == "one-object" or mask_state == "com" or mask_state == "pusher" or mask_state == "pusher+object" or mask_state == "useless" or mask_state == "all-objects" or mask_state == "useless-no-vel"):
                         rewards_real= rewards
                         rewards = rewards * scale +  [density_model.get_density(next_obs[self.mask_state_vect].reshape(1, next_obs[self.mask_state_vect].shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
                     elif (mask_state == "mix"):
@@ -122,7 +167,13 @@ class VectorizedSampler(BaseSampler):
 
 
                         # TODO Option 0: standard way
-                        rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
+
+                        if mask_state=="images":
+                            print('Using images for reward bonus')
+
+                            rewards = rewards * scale + [density_model.get_density(image.reshape(1, image.shape[0], image.shape[1], image.shape[2]), curr_noise) /((itr+1) ** decay_entr) for image in images]
+                        else:
+                            rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
 
                 else:
 
