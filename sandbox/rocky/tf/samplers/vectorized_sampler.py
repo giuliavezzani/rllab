@@ -82,12 +82,12 @@ class VectorizedSampler(BaseSampler):
                 if (mask_state == "objects"):
                     self.mask_state_vect = np.zeros(14)
                     for l in range(14):
-                        self.mask_state_vect[l] = 3 + l
+                        self.mask_state_vect[l] = 5 + l
                     self.mask_state_vect = self.mask_state_vect.astype(int)
                 elif (mask_state == "one-object") or (mask_state == "mix"):
                     self.mask_state_vect = np.zeros(2)
                     for l in range(2):
-                        self.mask_state_vect[l] = 3 + l
+                        self.mask_state_vect[l] = 5 + l
                     self.mask_state_vect = self.mask_state_vect.astype(int)
                 elif (mask_state == "com"):
                     self.mask_state_vect = np.zeros(2)
@@ -98,47 +98,25 @@ class VectorizedSampler(BaseSampler):
                 elif (mask_state == "pusher"):
                     self.mask_state_vect = np.zeros(2)
                     for l in range(2):
-                        self.mask_state_vect[l] =  l
+                        self.mask_state_vect[l] =  3 + l
                     self.mask_state_vect = self.mask_state_vect.astype(int)
 
                 elif (mask_state == "pusher+object"):
                     self.mask_state_vect = np.zeros(4)
                     for l in range(2):
-                        self.mask_state_vect[l] =  l
-                    for l in range(2):
-                        self.mask_state_vect[l+2] =  3 + l
-                    self.mask_state_vect = self.mask_state_vect.astype(int)
-
-                elif (mask_state == "useless"):
-                    self.mask_state_vect = np.zeros(29)
-
-                    for l in range(29):
-                        self.mask_state_vect[l] =  5 + l
-                    self.mask_state_vect = self.mask_state_vect.astype(int)
-
-                elif (mask_state == "all-objects"):
-                    self.mask_state_vect = np.zeros(14)
-
-                    for l in range(14):
                         self.mask_state_vect[l] =  3 + l
+                    for l in range(2):
+                        self.mask_state_vect[l+2] =  5 + l
                     self.mask_state_vect = self.mask_state_vect.astype(int)
-
-                elif (mask_state == "useless-no-vel"):
-                    self.mask_state_vect = np.zeros(12)
-
-                    for l in range(12):
-                        self.mask_state_vect[l] =  5 + l
-                    self.mask_state_vect = self.mask_state_vect.astype(int)
-
-
 
                 rewards_real = np.zeros(shape=rewards.shape)
 
-                print(self.mask_state_vect)
+                if not mask_state == "all":
+                    print(self.mask_state_vect)
 
                 if name_density_model == 'vae':
                     curr_noise = np.random.normal(size=(1, density_model.hidden_size))
-                    if (mask_state == "objects" or mask_state == "one-object" or mask_state == "com" or mask_state == "pusher" or mask_state == "pusher+object" or mask_state == "useless" or mask_state == "all-objects" or mask_state == "useless-no-vel"):
+                    if (mask_state == "objects" or mask_state == "one-object" or mask_state == "com" or mask_state == "pusher" or mask_state == "pusher+object"):
                         rewards_real= rewards
                         rewards = rewards * scale +  [density_model.get_density(next_obs[self.mask_state_vect].reshape(1, next_obs[self.mask_state_vect].shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
                     elif (mask_state == "mix"):

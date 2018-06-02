@@ -209,13 +209,13 @@ class BatchPolopt(RLAlgorithm):
                     if (self.mask_state == "objects"):
                         self.mask_state_vect = np.zeros(14)
                         for l in range(14):
-                            self.mask_state_vect[l] = 3 + l
+                            self.mask_state_vect[l] = 5 + l
 
                         self.mask_state_vect = self.mask_state_vect.astype(int)
                     elif (self.mask_state == "one-object") or (self.mask_state == "mix"):
                         self.mask_state_vect = np.zeros(2)
                         for l in range(2):
-                            self.mask_state_vect[l] = 3 + l
+                            self.mask_state_vect[l] = 5 + l
                         self.mask_state_vect = self.mask_state_vect.astype(int)
                     elif (self.mask_state == "com"):
                         self.mask_state_vect = np.zeros(2)
@@ -226,44 +226,30 @@ class BatchPolopt(RLAlgorithm):
                     elif (self.mask_state == "pusher"):
                         self.mask_state_vect = np.zeros(2)
                         for l in range(2):
-                            self.mask_state_vect[l] =  l
+                            self.mask_state_vect[l] =  3 + l
                         self.mask_state_vect = self.mask_state_vect.astype(int)
 
                     elif (self.mask_state == "pusher+object"):
                         self.mask_state_vect = np.zeros(4)
                         for l in range(2):
-                            self.mask_state_vect[l] =  l
+                            self.mask_state_vect[l] =   3 + l
                         for l in range(2):
-                            self.mask_state_vect[l+2] =  3 + l
+                            self.mask_state_vect[l+2] =  5 + l
                         self.mask_state_vect = self.mask_state_vect.astype(int)
 
-                    elif (self.mask_state == "useless"):
-                        self.mask_state_vect = np.zeros(29)
-
-                        for l in range(29):
-                            self.mask_state_vect[l] =  5 + l
-                        self.mask_state_vect = self.mask_state_vect.astype(int)
-
-                    elif (self.mask_state == "all-objects"):
-                        self.mask_state_vect = np.zeros(14)
-
-                        for l in range(14):
-                            self.mask_state_vect[l] =  3 + l
-                        self.mask_state_vect = self.mask_state_vect.astype(int)
-
-                    elif (self.mask_state == "useless-no-vel"):
+                    elif (self.mask_state == "other-objects"):
                         self.mask_state_vect = np.zeros(12)
 
                         for l in range(12):
-                            self.mask_state_vect[l] =  5 + l
+                            self.mask_state_vect[l] =  7 + l
                         self.mask_state_vect = self.mask_state_vect.astype(int)
 
 
-
-                    print('IN BATCH', self.mask_state_vect)
+                    if not self.mask_state  == "all":
+                        print('IN BATCH', self.mask_state_vect)
                     if self.use_old_data == 'no':
                         samples_data_coll = []
-                    if (self.mask_state == "objects") or (self.mask_state == "one-object") or (self.mask_state == "com") or (self.mask_state == "pusher") or (self.mask_state == "pusher+object") or (self.mask_state == "useless")  or (self.mask_state == "useless-no-vel"):
+                    if (self.mask_state == "objects") or (self.mask_state == "one-object") or (self.mask_state == "com") or (self.mask_state == "pusher") or (self.mask_state == "pusher+object") :
                         samples_data_coll.append([samples[self.mask_state_vect] for samples in samples_data['observations']])
                     elif (self.mask_state == "mix"):
                         if itr < self.iter_switch:
