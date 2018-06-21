@@ -244,12 +244,30 @@ class BatchPolopt(RLAlgorithm):
                             self.mask_state_vect[l] =  7 + l
                         self.mask_state_vect = self.mask_state_vect.astype(int)
 
+                    elif (self.mask_state == "one-object-act"):
+                        self.mask_state_vect = np.zeros(1)
+
+                        self.mask_state_vect[0] =  1
+                        self.mask_state_vect = self.mask_state_vect.astype(int)
+                    elif (self.mask_state == "other-object-act"):
+                        self.mask_state_vect = np.zeros(1)
+
+                        self.mask_state_vect[0] =  3
+                        self.mask_state_vect = self.mask_state_vect.astype(int)
+
+                    elif (self.mask_state == "all-act"):
+                        self.mask_state_vect = np.zeros(4)
+
+                        for l in range(4):
+                            self.mask_state_vect[l] =  1 + 2*l
+                        self.mask_state_vect = self.mask_state_vect.astype(int)
+
 
                     if not self.mask_state  == "all":
                         print('IN BATCH', self.mask_state_vect)
                     if self.use_old_data == 'no':
                         samples_data_coll = []
-                    if (self.mask_state == "objects") or (self.mask_state == "one-object") or (self.mask_state == "com") or (self.mask_state == "pusher") or (self.mask_state == "pusher+object") :
+                    if (self.mask_state == "one-object-act" or self.mask_state == "all-act") or (self.mask_state == "other-object-act") or (self.mask_state == "objects") or (self.mask_state == "one-object") or (self.mask_state == "com") or (self.mask_state == "pusher") or (self.mask_state == "pusher+object") :
                         samples_data_coll.append([samples[self.mask_state_vect] for samples in samples_data['observations']])
                     elif (self.mask_state == "mix"):
                         if itr < self.iter_switch:

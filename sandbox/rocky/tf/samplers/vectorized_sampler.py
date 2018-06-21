@@ -109,14 +109,35 @@ class VectorizedSampler(BaseSampler):
                         self.mask_state_vect[l+2] =  5 + l
                     self.mask_state_vect = self.mask_state_vect.astype(int)
 
+                elif (mask_state == "one-object-act"):
+                    self.mask_state_vect = np.zeros(1)
+
+                    self.mask_state_vect[0] =  1
+                    self.mask_state_vect = self.mask_state_vect.astype(int)
+                elif (mask_state == "other-object-act"):
+                    self.mask_state_vect = np.zeros(1)
+
+                    self.mask_state_vect[0] =  3
+                    self.mask_state_vect = self.mask_state_vect.astype(int)
+
+                elif (mask_state == "all-act"):
+                    self.mask_state_vect = np.zeros(4)
+
+                    for l in range(4):
+                        self.mask_state_vect[l] =  1 + 2*l
+                    self.mask_state_vect = self.mask_state_vect.astype(int)
+
+
                 rewards_real = np.zeros(shape=rewards.shape)
 
+                #import IPython
+                #IPython.embed()
                 if not mask_state == "all":
                     print(self.mask_state_vect)
 
                 if name_density_model == 'vae':
                     curr_noise = np.random.normal(size=(1, density_model.hidden_size))
-                    if (mask_state == "objects" or mask_state == "one-object" or mask_state == "com" or mask_state == "pusher" or mask_state == "pusher+object"):
+                    if (mask_state == "one-object-act" or mask_state == "other-object-act" or mask_state == "all-act" or mask_state == "objects" or mask_state == "one-object" or mask_state == "com" or mask_state == "pusher" or mask_state == "pusher+object"):
                         rewards_real= rewards
                         rewards = rewards * scale +  [density_model.get_density(next_obs[self.mask_state_vect].reshape(1, next_obs[self.mask_state_vect].shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
                     elif (mask_state == "mix"):
