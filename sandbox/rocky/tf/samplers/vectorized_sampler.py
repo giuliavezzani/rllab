@@ -38,7 +38,7 @@ class VectorizedSampler(BaseSampler):
     def shutdown_worker(self):
         self.vec_env.terminate()
 
-    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, iter_switch, new_density_model=None, old_paths=None):
+    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, iter_switch, new_density_model=None, old_paths=None, normal_policy=True):
         logger.log("Obtaining samples for iteration %d..." % itr)
         paths = []
         n_samples = 0
@@ -46,6 +46,8 @@ class VectorizedSampler(BaseSampler):
         obses = self.vec_env.reset()
         dones = np.asarray([True] * self.vec_env.num_envs)
         running_paths = [None] * self.vec_env.num_envs
+        if normal_policy is False:
+            entropy = np.asarray(1.0 * self.vec_env.num_envs)
 
         pbar = ProgBarCounter(self.algo.batch_size)
         policy_time = 0
@@ -60,7 +62,10 @@ class VectorizedSampler(BaseSampler):
             t = time.time()
             policy.reset(dones)
 
-            actions, agent_infos = policy.get_actions(obses)
+            if normal_policy:
+                actions, agent_infos = policy.get_actions(obses)
+            else:
+                actions, agent_infos = policy.get_actions_entropy(obses, entropy)
 
             policy_time += time.time() - t
             t = time.time()
@@ -104,7 +109,7 @@ class VectorizedSampler(BaseSampler):
                 elif (mask_state == "pusher+object"):
                     self.mask_state_vect = np.zeros(4)
                     for l in range(2):
-                        self.mask_state_vect[l] =  3 + l
+                        self.mask_state_vect[l] =   3 + l
                     for l in range(2):
                         self.mask_state_vect[l+2] =  5 + l
                     self.mask_state_vect = self.mask_state_vect.astype(int)
@@ -132,22 +137,28 @@ class VectorizedSampler(BaseSampler):
 
                 #import IPython
                 #IPython.embed()
-                if not mask_state == "all":
-                    print(self.mask_state_vect)
+                #if not mask_state == "all":
+                #    print(self.mask_state_vect)
 
                 if name_density_model == 'vae':
                     curr_noise = np.random.normal(size=(1, density_model.hidden_size))
                     if (mask_state == "one-object-act" or mask_state == "other-object-act" or mask_state == "all-act" or mask_state == "objects" or mask_state == "one-object" or mask_state == "com" or mask_state == "pusher" or mask_state == "pusher+object"):
                         rewards_real= rewards
                         rewards = rewards * scale +  [density_model.get_density(next_obs[self.mask_state_vect].reshape(1, next_obs[self.mask_state_vect].shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
+                        entropy =  [100 * density_model.get_density(next_obs[self.mask_state_vect].reshape(1, next_obs[self.mask_state_vect].shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
                     elif (mask_state == "mix"):
                         if itr < iter_switch:
                             rewards_real= rewards
                             rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
+                            entropy =  [100 * density_model.get_density(next_obs[self.mask_state_vect].reshape(1, next_obs[self.mask_state_vect].shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
                         else:
                             rewards_real= rewards
 
                             rewards = rewards * scale +  [density_model.get_density(next_obs[self.mask_state_vect].reshape(1, next_obs[self.mask_state_vect].shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
+                            entropy = [100 * density_model.get_density(next_obs[self.mask_state_vect].reshape(1, next_obs[self.mask_state_vect].shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
+                    #elif (mask_state == "bottleneck"):
+                    #    rewards_real= rewards
+                    #    rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
                     else:
                         rewards_real= rewards
 
@@ -177,6 +188,8 @@ class VectorizedSampler(BaseSampler):
                 else:
 
                     rewards = [density_model.get_density(next_obs.reshape(1, next_obs.shape[0])) for next_obs in next_obses]
+
+                #print(rewards)
 
             elif reward_type == 'policy_entropy':
                 rewards_real = np.zeros(shape=rewards.shape)

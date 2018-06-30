@@ -173,6 +173,24 @@ class GaussianMLPPolicy(StochasticPolicy, LayersPowered, Serializable):
         actions = rnd * np.exp(log_stds) + means
         return actions, dict(mean=means, log_std=log_stds)
 
+    def get_actions_entropy(self, observations, entropy):
+        flat_obs = self.observation_space.flatten_n(observations)
+        means, log_stds = self._f_dist(flat_obs)
+        rnd = np.random.normal(size=means.shape)
+
+        if isinstance(entropy, list):
+            entropy_array = np.ones(shape=(len(entropy), 3))
+            entropy_array[:,0] = entropy_array[:,1] = entropy_array[:,2] = entropy
+
+            log_stds_new = log_stds + entropy_array
+            #print('entropy', entropy_array)
+        else:
+            log_stds_new = log_stds
+
+        #print('new', log_stds_new)
+        actions = rnd * np.exp(log_stds_new) + means
+        return actions, dict(mean=means, log_std=log_stds_new)
+
     def get_prob(self, action, mean, log_std):
         from scipy.stats import multivariate_normal
         var = multivariate_normal(mean=mean, cov=np.exp(log_std**2))

@@ -82,7 +82,7 @@ def head_net(
             else:
                 out = linear(out, layer_size, task)
 
-            out += bias(1, task)
+            out += bias(layer_size, task)
 
             if i < len(layer_sizes_extra) - 1 and activation_fn:
                 out = activation_fn(out)

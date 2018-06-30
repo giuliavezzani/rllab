@@ -6,7 +6,7 @@ from rllab.algos.base import RLAlgorithm
 import rllab.misc.logger as logger
 from sandbox.rocky.tf.policies.base import Policy
 import tensorflow as tf
-from sandbox.rocky.tf.samplers.batch_sampler import BatchSampler
+#from sandbox.rocky.tf.samplers.batch_sampler import BatchSampler
 from sandbox.rocky.tf.samplers.vectorized_sampler import VectorizedSampler
 from rllab.sampler.utils import rollout
 
@@ -56,6 +56,7 @@ class BatchPolopt(RLAlgorithm):
             file_network = None,
             file_model = None,
             iter_switch = None,
+            normal_policy = True,
             **kwargs
     ):
         """
@@ -110,6 +111,7 @@ class BatchPolopt(RLAlgorithm):
         self.file_network = file_network
         self.file_model = file_model
         self.iter_switch = iter_switch
+        self.normal_policy = normal_policy
 
         if self.store_paths:
             logger.set_snapshot_dir(self.log_dir)
@@ -133,8 +135,8 @@ class BatchPolopt(RLAlgorithm):
     def shutdown_worker(self):
         self.sampler.shutdown_worker()
 
-    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, iter_switch=None, new_density_model=None, old_paths=None):
-        return self.sampler.obtain_samples(itr, density_model, reward_type, name_density_model, mask_state, iter_switch, new_density_model, old_paths)
+    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, iter_switch=None, new_density_model=None, old_paths=None, normal_policy=True):
+        return self.sampler.obtain_samples(itr, density_model, reward_type, name_density_model, mask_state, iter_switch, new_density_model, old_paths, normal_policy)
 
     def process_samples(self, itr, paths):
         return self.sampler.process_samples(itr, paths)
@@ -188,7 +190,7 @@ class BatchPolopt(RLAlgorithm):
                     else:
                         paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, iter_switch=self.iter_switch)
                 else:
-                    paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, iter_switch=self.iter_switch)
+                    paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, iter_switch=self.iter_switch, normal_policy=self.normal_policy)
 
 
                 logger.log("Processing samples...")
@@ -263,8 +265,8 @@ class BatchPolopt(RLAlgorithm):
                         self.mask_state_vect = self.mask_state_vect.astype(int)
 
 
-                    if not self.mask_state  == "all":
-                        print('IN BATCH', self.mask_state_vect)
+                    #if not self.mask_state  == "all":
+                    #    print('IN BATCH', self.mask_state_vect)
                     if self.use_old_data == 'no':
                         samples_data_coll = []
                     if (self.mask_state == "one-object-act" or self.mask_state == "all-act") or (self.mask_state == "other-object-act") or (self.mask_state == "objects") or (self.mask_state == "one-object") or (self.mask_state == "com") or (self.mask_state == "pusher") or (self.mask_state == "pusher+object") :
@@ -335,14 +337,14 @@ class BatchPolopt(RLAlgorithm):
 
 
                     observations.append(samples_data['observations'])
-                    #pickle.dump(observations, open(self.log_dir+'/observations.pkl', 'wb'))
+                    pickle.dump(observations, open(self.log_dir+'/observations.pkl', 'wb'))
                     rewards_real.append(samples_data['rewards_real'])
 
                     pickle.dump(rewards_real, open(self.log_dir+'/rewards_real.pkl', 'wb'))
                     rewards.append(samples_data['rewards'])
                     pickle.dump(rewards, open(self.log_dir+'/rewards.pkl', 'wb'))
                     returns.append(samples_data['returns'])
-                    pickle.dump(returns, open(self.log_dir+'/returns.pkl', 'wb'))
+                    #pickle.dump(returns, open(self.log_dir+'/returns.pkl', 'wb'))
 
         self.shutdown_worker()
         if created_session:

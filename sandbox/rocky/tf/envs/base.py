@@ -17,7 +17,8 @@ def to_tf_space(space):
     elif isinstance(space, TheanoProduct):
         return Product(list(map(to_tf_space, space.components)))
     else:
-        raise NotImplementedError
+        return Box(low=space.low, high=space.high)
+        #raise NotImplementedError
 
 
 class WrappedCls(object):
@@ -41,6 +42,7 @@ class TfEnv(ProxyEnv):
 
     @cached_property
     def spec(self):
+
         return EnvSpec(
             observation_space=self.observation_space,
             action_space=self.action_space,
