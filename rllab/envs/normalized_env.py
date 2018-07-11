@@ -24,6 +24,8 @@ class NormalizedEnv(ProxyEnv, Serializable):
         self._normalize_obs = normalize_obs
         self._normalize_reward = normalize_reward
         self._obs_alpha = obs_alpha
+        #import IPython
+        #IPython.embed()
         self._obs_mean = np.zeros(env.observation_space.flat_dim)
         self._obs_var = np.ones(env.observation_space.flat_dim)
         self._reward_alpha = reward_alpha

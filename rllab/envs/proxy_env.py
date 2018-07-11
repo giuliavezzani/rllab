@@ -29,7 +29,8 @@ class ProxyEnv(Env, Serializable):
         return self._wrapped_env.render(*args, **kwargs)
 
     def log_diagnostics(self, paths, *args, **kwargs):
-        self._wrapped_env.log_diagnostics(paths, *args, **kwargs)
+        return
+        #self._wrapped_env.log_diagnostics(paths, *args, **kwargs)
 
     @property
     def horizon(self):

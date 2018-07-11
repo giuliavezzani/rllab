@@ -80,6 +80,10 @@ class BaseSampler(Sampler):
             env_infos = tensor_utils.concat_tensor_dict_list([path["env_infos"] for path in paths])
             agent_infos = tensor_utils.concat_tensor_dict_list([path["agent_infos"] for path in paths])
 
+            
+            if len(paths[0]) == 9:
+                images = tensor_utils.concat_tensor_list([path["images"] for path in paths])
+
             if self.algo.center_adv:
                 advantages = util.center_advantages(advantages)
 
@@ -93,17 +97,34 @@ class BaseSampler(Sampler):
 
             ent = np.mean(self.algo.policy.distribution.entropy(agent_infos))
 
-            samples_data = dict(
-                observations=observations,
-                actions=actions,
-                rewards=rewards,
-                rewards_real=rewards_real,
-                returns=returns,
-                advantages=advantages,
-                env_infos=env_infos,
-                agent_infos=agent_infos,
-                paths=paths,
-            )
+
+            if len(paths[0]) == 9:
+                samples_data = dict(
+                    observations=observations,
+                    actions=actions,
+                    rewards=rewards,
+                    rewards_real=rewards_real,
+                    returns=returns,
+                    advantages=advantages,
+                    env_infos=env_infos,
+                    agent_infos=agent_infos,
+                    paths=paths,
+                    images=images,
+                )
+            else:
+
+                samples_data = dict(
+                    observations=observations,
+                    actions=actions,
+                    rewards=rewards,
+                    rewards_real=rewards_real,
+                    returns=returns,
+                    advantages=advantages,
+                    env_infos=env_infos,
+                    agent_infos=agent_infos,
+                    paths=paths,
+                )
+
         else:
             max_path_length = max([len(path["advantages"]) for path in paths])
 
@@ -154,18 +175,34 @@ class BaseSampler(Sampler):
 
             ent = np.sum(self.algo.policy.distribution.entropy(agent_infos) * valids) / np.sum(valids)
 
-            samples_data = dict(
-                observations=obs,
-                actions=actions,
-                advantages=adv,
-                rewards=rewards,
-                rewards_real=rewards_real,
-                returns=returns,
-                valids=valids,
-                agent_infos=agent_infos,
-                env_infos=env_infos,
-                paths=paths,
-            )
+            if len(paths[0]) == 9:
+                samples_data = dict(
+                    observations=obs,
+                    actions=actions,
+                    advantages=adv,
+                    rewards=rewards,
+                    rewards_real=rewards_real,
+                    returns=returns,
+                    valids=valids,
+                    agent_infos=agent_infos,
+                    env_infos=env_infos,
+                    paths=paths,
+                )
+            else:
+                samples_data = dict(
+                    observations=obs,
+                    actions=actions,
+                    advantages=adv,
+                    rewards=rewards,
+                    rewards_real=rewards_real,
+                    returns=returns,
+                    valids=valids,
+                    agent_infos=agent_infos,
+                    env_infos=env_infos,
+                    paths=paths,
+                    images=images,
+                )
+
 
         logger.log("fitting baseline...")
         if hasattr(self.algo.baseline, 'fit_with_samples'):

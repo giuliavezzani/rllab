@@ -24,21 +24,36 @@ class VectorizedSampler(BaseSampler):
         if n_envs is None:
             n_envs = int(self.algo.batch_size / self.algo.max_path_length)
             n_envs = max(1, min(n_envs, 100))
+            n_envs = 1
+
 
         if getattr(self.algo.env, 'vectorized', False):
             self.vec_env = self.algo.env.vec_env_executor(n_envs=n_envs, max_path_length=self.algo.max_path_length)
         else:
             envs = [pickle.loads(pickle.dumps(self.algo.env)) for _ in range(n_envs)]
+
+            if hasattr(envs[0].wrapped_env, 'choice'):
+                for l in range(len(envs)):
+                    envs[l].wrapped_env.choice = self.algo.env.wrapped_env.choice
+                    envs[l].wrapped_env.sparse = self.algo.env.wrapped_env.sparse
+                    envs[l].wrapped_env.all_goals = self.algo.env.wrapped_env.all_goals
+                    envs[l].wrapped_env.file_goals = self.algo.env.wrapped_env.file_goals
+                    envs[l].wrapped_env.use_reward = self.algo.env.wrapped_env.use_reward
+                    envs[l].wrapped_env.radius_reward = self.algo.env.wrapped_env.radius_reward
+
             self.vec_env = VecEnvExecutor(
                 envs=envs,
                 max_path_length=self.algo.max_path_length
             )
+
+            #import IPython
+            #IPython.embed()
         self.env_spec = self.algo.env.spec
 
     def shutdown_worker(self):
         self.vec_env.terminate()
 
-    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, iter_switch, new_density_model=None, old_paths=None, normal_policy=True):
+    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, iter_switch, new_density_model=None, old_paths=None, normal_policy=True, env_type='rllab'):
         logger.log("Obtaining samples for iteration %d..." % itr)
         paths = []
         n_samples = 0
@@ -56,6 +71,8 @@ class VectorizedSampler(BaseSampler):
 
         policy = self.algo.policy
 
+        #import IPython
+        #IPython.embed()
         import time
         while n_samples < self.algo.batch_size:
 
@@ -70,9 +87,12 @@ class VectorizedSampler(BaseSampler):
             policy_time += time.time() - t
             t = time.time()
             next_obses, rewards, dones, env_infos = self.vec_env.step(actions)
-            if mask_state == "images":
-                images = self.vec_env.get_images()
+            if mask_state == "images-all" or mask_state == "images-estim" :
 
+                if env_type == 'rllab':
+                    images = np.asarray(self.vec_env.get_images())
+                else:
+                    images = np.asarray(self.vec_env.get_images(env_type=env_type))
 
             env_time += time.time() - t
             obs_bottleneck = []
@@ -178,12 +198,15 @@ class VectorizedSampler(BaseSampler):
 
                         # TODO Option 0: standard way
 
-                        if mask_state=="images":
-                            print('Using images for reward bonus')
+                    if  mask_state=="images-all":
 
-                            rewards = rewards * scale + [density_model.get_density(image.reshape(1, image.shape[0], image.shape[1], image.shape[2]), curr_noise) /((itr+1) ** decay_entr) for image in images]
-                        else:
-                            rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
+
+                        rewards = rewards * scale + [density_model.get_density(image.reshape(1, image.shape[0], image.shape[1], image.shape[2]), curr_noise) /((itr+1) ** decay_entr) for image in images]
+                    elif mask_state=="images-estim" :
+
+                        rewards = rewards * scale + [density_model.get_density(image.reshape(1, image.shape[0], image.shape[1], image.shape[2]), curr_noise) /((itr+1) ** decay_entr) for image in images]
+                    #else:
+                    #    rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
 
                 else:
 
@@ -242,39 +265,87 @@ class VectorizedSampler(BaseSampler):
                 env_infos = [dict() for _ in range(self.vec_env.num_envs)]
             if agent_infos is None:
                 agent_infos = [dict() for _ in range(self.vec_env.num_envs)]
-            for idx, observation, action, reward, env_info, agent_info, done, r_real in zip(itertools.count(), obses, actions,
-                                                                                    rewards, env_infos, agent_infos,
-                                                                                    dones, rewards_real):
-                if running_paths[idx] is None:
-                    running_paths[idx] = dict(
-                        observations=[],
-                        actions=[],
-                        rewards=[],
-                        env_infos=[],
-                        agent_infos=[],
-                        rewards_real=[],
-                    )
-                running_paths[idx]["observations"].append(observation)
-                running_paths[idx]["actions"].append(action)
-                running_paths[idx]["rewards"].append(reward)
-                running_paths[idx]["rewards_real"].append(r_real)
-                running_paths[idx]["env_infos"].append(env_info)
-                running_paths[idx]["agent_infos"].append(agent_info)
-                if done:
-                    paths.append(dict(
-                        observations=self.env_spec.observation_space.flatten_n(running_paths[idx]["observations"]),
-                        actions=self.env_spec.action_space.flatten_n(running_paths[idx]["actions"]),
-                        rewards=tensor_utils.stack_tensor_list(running_paths[idx]["rewards"]),
-                        env_infos=tensor_utils.stack_tensor_dict_list(running_paths[idx]["env_infos"]),
-                        agent_infos=tensor_utils.stack_tensor_dict_list(running_paths[idx]["agent_infos"]),
-                        rewards_real=tensor_utils.stack_tensor_list(running_paths[idx]["rewards_real"]),
-                    ))
-                    n_samples += len(running_paths[idx]["rewards"])
-                    running_paths[idx] = None
 
-            process_time += time.time() - t
-            pbar.inc(len(obses))
-            obses = next_obses
+            #import IPython
+            #IPython.embed()
+            if not (mask_state =='images-all' or mask_state == 'images-estim'):
+                for idx, observation, action, reward, env_info, agent_info, done, r_real in zip(itertools.count(), obses, actions,
+                                                                                        rewards, env_infos, agent_infos,
+                                                                                        dones, rewards_real):
+                    if running_paths[idx] is None:
+                        running_paths[idx] = dict(
+                            observations=[],
+                            actions=[],
+                            rewards=[],
+                            env_infos=[],
+                            agent_infos=[],
+                            rewards_real=[],
+                        )
+                    running_paths[idx]["observations"].append(observation)
+                    running_paths[idx]["actions"].append(action)
+                    running_paths[idx]["rewards"].append(reward)
+                    running_paths[idx]["rewards_real"].append(r_real)
+                    running_paths[idx]["env_infos"].append(env_info)
+                    running_paths[idx]["agent_infos"].append(agent_info)
+
+                    if done:
+                        paths.append(dict(
+                            observations=self.env_spec.observation_space.flatten_n(running_paths[idx]["observations"]),
+                            actions=self.env_spec.action_space.flatten_n(running_paths[idx]["actions"]),
+                            rewards=tensor_utils.stack_tensor_list(running_paths[idx]["rewards"]),
+                            env_infos=tensor_utils.stack_tensor_dict_list(running_paths[idx]["env_infos"]),
+                            agent_infos=tensor_utils.stack_tensor_dict_list(running_paths[idx]["agent_infos"]),
+                            rewards_real=tensor_utils.stack_tensor_list(running_paths[idx]["rewards_real"]),
+                        ))
+                        n_samples += len(running_paths[idx]["rewards"])
+                        running_paths[idx] = None
+
+                process_time += time.time() - t
+                pbar.inc(len(obses))
+                obses = next_obses
+            else:
+
+                for idx, observation, action, reward, env_info, agent_info, done, r_real, img in zip(itertools.count(), obses, actions,
+                                                                                        rewards, env_infos, agent_infos,
+                                                                                        dones, rewards_real, images):
+                    if running_paths[idx] is None:
+                        running_paths[idx] = dict(
+                            observations=[],
+                            actions=[],
+                            rewards=[],
+                            env_infos=[],
+                            agent_infos=[],
+                            rewards_real=[],
+                            images=[],
+                        )
+                    running_paths[idx]["observations"].append(observation)
+                    running_paths[idx]["actions"].append(action)
+                    running_paths[idx]["rewards"].append(reward)
+                    running_paths[idx]["rewards_real"].append(r_real)
+                    running_paths[idx]["env_infos"].append(env_info)
+                    running_paths[idx]["agent_infos"].append(agent_info)
+                    running_paths[idx]["images"].append(img)
+
+
+                    if done:
+                        paths.append(dict(
+                            observations=self.env_spec.observation_space.flatten_n(running_paths[idx]["observations"]),
+                            actions=self.env_spec.action_space.flatten_n(running_paths[idx]["actions"]),
+                            rewards=tensor_utils.stack_tensor_list(running_paths[idx]["rewards"]),
+                            env_infos=tensor_utils.stack_tensor_dict_list(running_paths[idx]["env_infos"]),
+                            agent_infos=tensor_utils.stack_tensor_dict_list(running_paths[idx]["agent_infos"]),
+                            rewards_real=tensor_utils.stack_tensor_list(running_paths[idx]["rewards_real"]),
+                            images=tensor_utils.stack_tensor_list(running_paths[idx]["images"]),
+                        ))
+                        n_samples += len(running_paths[idx]["rewards"])
+                        running_paths[idx] = None
+
+
+                process_time += time.time() - t
+                pbar.inc(len(obses))
+                obses = next_obses
+
+
 
         pbar.stop()
 

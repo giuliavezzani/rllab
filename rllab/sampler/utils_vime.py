@@ -2,8 +2,6 @@ import numpy as np
 from rllab.misc import tensor_utils
 import time
 
-import matplotlib.pyplot as plt
-
 
 def rollout(env, agent,  max_path_length=np.inf, animated=False, speedup=1,
             always_return_paths=False):
@@ -45,13 +43,7 @@ def rollout(env, agent,  max_path_length=np.inf, animated=False, speedup=1,
         o = next_o
         if animated:
             env.render()
-            data, width, height = env.wrapped_env.wrapped_env.get_viewer().get_image()
-            images.append(np.fromstring(data, dtype='uint8').reshape(height, width, 3)[::-1,:,:])
-            timestep = 0.05
-            #data = env.wrapped_env.get_images()
-            #plt.imshow(data)
-            #plt.savefig('test-'+str(path_length)+'.png')
-            time.sleep(timestep / speedup)
+        
 
     #if animated and not always_return_paths:
     #    return

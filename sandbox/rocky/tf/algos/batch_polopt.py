@@ -57,6 +57,7 @@ class BatchPolopt(RLAlgorithm):
             file_model = None,
             iter_switch = None,
             normal_policy = True,
+            env_type='rllab',
             **kwargs
     ):
         """
@@ -112,6 +113,7 @@ class BatchPolopt(RLAlgorithm):
         self.file_model = file_model
         self.iter_switch = iter_switch
         self.normal_policy = normal_policy
+        self.env_type = env_type
 
         if self.store_paths:
             logger.set_snapshot_dir(self.log_dir)
@@ -135,8 +137,8 @@ class BatchPolopt(RLAlgorithm):
     def shutdown_worker(self):
         self.sampler.shutdown_worker()
 
-    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, iter_switch=None, new_density_model=None, old_paths=None, normal_policy=True):
-        return self.sampler.obtain_samples(itr, density_model, reward_type, name_density_model, mask_state, iter_switch, new_density_model, old_paths, normal_policy)
+    def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, iter_switch=None, new_density_model=None, old_paths=None, normal_policy=True, env_type='rllab'):
+        return self.sampler.obtain_samples(itr, density_model, reward_type, name_density_model, mask_state, iter_switch, new_density_model, old_paths, normal_policy, env_type)
 
     def process_samples(self, itr, paths):
         return self.sampler.process_samples(itr, paths)
@@ -190,13 +192,17 @@ class BatchPolopt(RLAlgorithm):
                     else:
                         paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, iter_switch=self.iter_switch)
                 else:
-                    paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, iter_switch=self.iter_switch, normal_policy=self.normal_policy)
+
+                    paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, iter_switch=self.iter_switch, normal_policy=self.normal_policy, env_type=self.env_type)
 
 
                 logger.log("Processing samples...")
                 samples_data = self.process_samples(itr, paths)
                 logger.log("Logging diagnostics...")
                 self.log_diagnostics(paths)
+
+                #import IPython
+                #IPython.embed()
                 ### If we use pseudo-count the policy should updated later
 
                 if not self.reward_type == 'pseudo-count':
@@ -279,9 +285,28 @@ class BatchPolopt(RLAlgorithm):
                                 samples_data_coll.append(samples_data['observations'])
                         else:
                             samples_data_coll.append([samples[self.mask_state_vect] for samples in samples_data['observations']])
+
+
+
+                    elif self.mask_state == 'images-all' or self.mask_state == 'images-estim':
+                        ## TODO changes here
+                        #if samples_data['observations'].shape[0] > 10000:
+
+
+                        if samples_data['images'].shape[0] > self.batch_size:
+                            samples_data_coll.append(samples_data['images'][0:self.batch_size])
+                        #elif samples_data['observations'].shape[0] > 1000:
+
+                            #samples_data_coll.append(samples_data['observations'][0:-1:5][0:1000])
+                        else:
+                            samples_data_coll.append(samples_data['images'])
+
                     else:
                         ## TODO changes here
                         #if samples_data['observations'].shape[0] > 10000:
+
+                        #import IPython
+                        #IPython.embed()
 
                         if samples_data['observations'].shape[0] > self.batch_size:
                             samples_data_coll.append(samples_data['observations'][0:self.batch_size])
@@ -298,9 +323,13 @@ class BatchPolopt(RLAlgorithm):
                     #            samples_data_coll.append(self.sess.run(self.network._output_for_shared(self.obs_pl, task=0, reuse=tf.AUTO_REUSE),
                     #                                                                feed_dict={self.obs_pl: samples_data['observations']}))
 
+
+
                     self.args_density_model.obs = samples_data_coll
 
                     self.args_density_model.itr = itr
+
+                    
 
                     print(np.asarray(samples_data_coll).ndim)
                     if (np.asarray(samples_data_coll).ndim> 1):

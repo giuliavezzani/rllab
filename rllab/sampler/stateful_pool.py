@@ -1,6 +1,6 @@
 
 
-from joblib.pool import MemmapingPool
+#from joblib.pool import MemmapingPool
 import multiprocessing as mp
 from rllab.misc import logger
 import pyprind
@@ -53,13 +53,13 @@ class StatefulPool(object):
             self.queue.close()
             self.worker_queue.close()
             self.G = SharedGlobal()
-        if n_parallel > 1:
+        """if n_parallel > 1:
             self.queue = mp.Queue()
             self.worker_queue = mp.Queue()
             self.pool = MemmapingPool(
                 self.n_parallel,
                 temp_folder="/tmp",
-            )
+            )"""
 
     def run_each(self, runner, args_list=None):
         """
@@ -117,7 +117,7 @@ class StatefulPool(object):
         :param threshold:
         :return:
         """
-        
+
         if args is None:
             args = tuple()
         if self.pool:
