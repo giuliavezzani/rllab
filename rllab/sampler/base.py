@@ -65,6 +65,7 @@ class BaseSampler(Sampler):
             baselines.append(path_baselines[:-1])
             returns.append(path["returns"])
 
+
         ev = special.explained_variance_1d(
             np.concatenate(baselines),
             np.concatenate(returns)
@@ -80,7 +81,7 @@ class BaseSampler(Sampler):
             env_infos = tensor_utils.concat_tensor_dict_list([path["env_infos"] for path in paths])
             agent_infos = tensor_utils.concat_tensor_dict_list([path["agent_infos"] for path in paths])
 
-            
+
             if len(paths[0]) == 9:
                 images = tensor_utils.concat_tensor_list([path["images"] for path in paths])
 

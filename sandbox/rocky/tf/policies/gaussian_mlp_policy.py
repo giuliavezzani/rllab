@@ -61,6 +61,8 @@ class GaussianMLPPolicy(StochasticPolicy, LayersPowered, Serializable):
             obs_dim = env_spec.observation_space.flat_dim
             action_dim = env_spec.action_space.flat_dim
 
+            
+
 
             # create network
             if mean_network is None:
@@ -81,7 +83,7 @@ class GaussianMLPPolicy(StochasticPolicy, LayersPowered, Serializable):
                 l_std_param = std_network.output_layer
             else:
                 if adaptive_std:
-                    
+
                     std_network = MLP(
                         name="std_network",
                         input_shape=(obs_dim,),

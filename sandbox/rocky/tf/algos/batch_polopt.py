@@ -100,24 +100,48 @@ class BatchPolopt(RLAlgorithm):
         self.fixed_horizon = fixed_horizon
         self.log_dir = log_dir
         self.gap = gap
+
+        ## This is the density model we use for compute the entropy.
+        ## In this implementation the only option is a VAE (or VAE convolutional when images are used)
         self.density_model  = density_model
+
+        ## This was a auxiliary VAE I used for maximizing the entropy at first on the entire state
+        ## and then only on the latent variable. Those results were worst than the ones obtained only
+        ## when maximizing the entropy on the latent variable since the beginning.
         self.density_model_aux = density_model_aux
+        ## This clas contains the parameters for the density model
         self.args_density_model  = args_density_model
+        ## This is actually useful, since only vae is available
         self.name_density_model  = name_density_model
+        # Reward type can be: 'std', 'state_entropy' or 'policy_entropy'
         self.reward_type = reward_type
+        # To decide on which part of the state to maximize entropy
         self.mask_state = mask_state
+        # This was to decide if to fit VAE only on data collected at the curr_path_length
+        # iteration (thus, on policy), or on a buffer (all the past data). Now this value
+        # is fixed to 'no', since we only use the current data
         self.use_old_data = use_old_data
+        # This might be useless
         self.network = network
+        # To say the dimension of the latent variable
         self.bottleneck_size = bottleneck_size
+        # The parameters of the shared layers of the latent variable
         self.file_network = file_network
+        # Previously trained policy model
         self.file_model = file_model
+        # This was the parameter to switch between the two vae (vae and vae_aux)
         self.iter_switch = iter_switch
+        # Currently, this is fix equal to True
         self.normal_policy = normal_policy
+        # This is deal with two different types of environment: rllab or gym env
         self.env_type = env_type
 
         if self.store_paths:
             logger.set_snapshot_dir(self.log_dir)
 
+        # The vectorized sample is the sampler we use (actually for images tests we
+        # hardcoded n_env=1 in the vectorizes_sample code, because vectorization seems to cause issues
+        # in rendering)
         if sampler_cls is None:
             # if self.policy.vectorized and not force_batch_sampler:
             sampler_cls = VectorizedSampler
@@ -128,8 +152,8 @@ class BatchPolopt(RLAlgorithm):
 
             self.sampler = sampler_cls(self, **sampler_args)
 
-        #if self.file_model == None:
-        self.init_opt()
+        if self.file_model == None:
+            self.init_opt()
 
     def start_worker(self):
         self.sampler.start_worker()
@@ -137,6 +161,7 @@ class BatchPolopt(RLAlgorithm):
     def shutdown_worker(self):
         self.sampler.shutdown_worker()
 
+    # This is the function to obtain samples for training
     def obtain_samples(self, itr, density_model, reward_type, name_density_model, mask_state, iter_switch=None, new_density_model=None, old_paths=None, normal_policy=True, env_type='rllab'):
         return self.sampler.obtain_samples(itr, density_model, reward_type, name_density_model, mask_state, iter_switch, new_density_model, old_paths, normal_policy, env_type)
 
@@ -149,7 +174,8 @@ class BatchPolopt(RLAlgorithm):
             sess = tf.Session()
             sess.__enter__()
 
-        """if self.file_model is not None:
+        # If a pre-trained policy is available
+        if self.file_model is not None:
             import joblib
             self.policy = joblib.load(self.file_model)['policy']
             self.init_opt()
@@ -164,9 +190,7 @@ class BatchPolopt(RLAlgorithm):
                     uninit_vars.append(var)
             sess.run(tf.variables_initializer(uninit_vars))
         else:
-            sess.run(tf.global_variables_initializer())"""
-
-        sess.run(tf.global_variables_initializer())
+            sess.run(tf.global_variables_initializer())
 
         self.start_worker()
         start_time = time.time()
@@ -175,8 +199,10 @@ class BatchPolopt(RLAlgorithm):
         rewards_real = []
         returns = []
         samples_data_coll = []
+        # Passing some parameters to the vae
         self.density_model.scale = self.args_density_model.scale
         self.density_model.decay_entr = self.args_density_model.decay_entropy
+        # This was for the auxiliary vae
         if self.density_model_aux is not None:
             self.density_model_aux.scale = self.args_density_model.scale
             self.density_model_aux.decay_entr = self.args_density_model.decay_entropy
@@ -186,13 +212,14 @@ class BatchPolopt(RLAlgorithm):
             with logger.prefix('itr #%d | ' % itr):
                 logger.log("Obtaining samples...")
 
+                # This was in case the two vaes on different slices of the state were used
                 if self.mask_state == "mix" or self.mask_state == "mix-nn":
                     if itr < self.iter_switch:
                         paths = self.obtain_samples(itr=itr, density_model=self.density_model_aux, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, iter_switch=self.iter_switch)
                     else:
                         paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, iter_switch=self.iter_switch)
                 else:
-
+                    # This is for the other case, so the used one
                     paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, iter_switch=self.iter_switch, normal_policy=self.normal_policy, env_type=self.env_type)
 
 
@@ -201,50 +228,52 @@ class BatchPolopt(RLAlgorithm):
                 logger.log("Logging diagnostics...")
                 self.log_diagnostics(paths)
 
-                #import IPython
-                #IPython.embed()
-                ### If we use pseudo-count the policy should updated later
 
-                if not self.reward_type == 'pseudo-count':
-                    logger.log("Optimizing policy...")
-                    self.optimize_policy(itr, samples_data)
+                # Psuedo count has been removed from the implementation
+                #if not self.reward_type == 'pseudo-count':
+                logger.log("Optimizing policy...")
+                self.optimize_policy(itr, samples_data)
 
                 ### Train the density model every iteration
-                if self.reward_type == 'state_entropy' or self.reward_type == 'pseudo-count':
+                if self.reward_type == 'state_entropy':
                     print('Training density model')
-                    ## Using all state of hand-coded masks
+                    ## Using all state for hand-coded masks
                     #if self.network == None:
+                    ## Mask state on all the objects for the block_vs_all_velocity
                     if (self.mask_state == "objects"):
                         self.mask_state_vect = np.zeros(14)
                         for l in range(14):
-                            self.mask_state_vect[l] = 5 + l
+                            self.mask_state_vect[l] = 5 + l              ## All the object positions
 
                         self.mask_state_vect = self.mask_state_vect.astype(int)
-                    elif (self.mask_state == "one-object") or (self.mask_state == "mix"):
+                    ## Mask state on the object of interest
+                    elif (self.mask_state == "one-object"):
                         self.mask_state_vect = np.zeros(2)
                         for l in range(2):
                             self.mask_state_vect[l] = 5 + l
                         self.mask_state_vect = self.mask_state_vect.astype(int)
+                    ## This is for the ant environment
                     elif (self.mask_state == "com"):
                         self.mask_state_vect = np.zeros(2)
                         for l in range(0,2):
                             self.mask_state_vect[l] =  122 + l
                         self.mask_state_vect = self.mask_state_vect.astype(int)
-
+                    ## Mask state on the pusher position
                     elif (self.mask_state == "pusher"):
                         self.mask_state_vect = np.zeros(2)
                         for l in range(2):
                             self.mask_state_vect[l] =  3 + l
                         self.mask_state_vect = self.mask_state_vect.astype(int)
-
+                    ## Mask state on the pusher and object of interest positions
                     elif (self.mask_state == "pusher+object"):
                         self.mask_state_vect = np.zeros(4)
                         for l in range(2):
-                            self.mask_state_vect[l] =   3 + l
+                            self.mask_state_vect[l] =   3 + l    # Pusher position
                         for l in range(2):
-                            self.mask_state_vect[l+2] =  5 + l
+                            self.mask_state_vect[l+2] =  5 + l   # Object of interest position
                         self.mask_state_vect = self.mask_state_vect.astype(int)
 
+                    ## Mask state on all the  other objects for the block_vs_all_velocity
                     elif (self.mask_state == "other-objects"):
                         self.mask_state_vect = np.zeros(12)
 
@@ -252,17 +281,21 @@ class BatchPolopt(RLAlgorithm):
                             self.mask_state_vect[l] =  7 + l
                         self.mask_state_vect = self.mask_state_vect.astype(int)
 
+                    ## This are the mask state for the toy environments
+                    ## Mask on the coordinate of the object of interest that is important to move
                     elif (self.mask_state == "one-object-act"):
                         self.mask_state_vect = np.zeros(1)
 
                         self.mask_state_vect[0] =  1
                         self.mask_state_vect = self.mask_state_vect.astype(int)
+                    ## Mask on the other part of the state
                     elif (self.mask_state == "other-object-act"):
                         self.mask_state_vect = np.zeros(1)
 
                         self.mask_state_vect[0] =  3
                         self.mask_state_vect = self.mask_state_vect.astype(int)
 
+                    ## All the state
                     elif (self.mask_state == "all-act"):
                         self.mask_state_vect = np.zeros(4)
 
@@ -270,80 +303,45 @@ class BatchPolopt(RLAlgorithm):
                             self.mask_state_vect[l] =  1 + 2*l
                         self.mask_state_vect = self.mask_state_vect.astype(int)
 
-
-                    #if not self.mask_state  == "all":
-                    #    print('IN BATCH', self.mask_state_vect)
+                    ## This is the option we suggest to use
                     if self.use_old_data == 'no':
                         samples_data_coll = []
+
+                    ## Collecting samples when using a mask on the state
                     if (self.mask_state == "one-object-act" or self.mask_state == "all-act") or (self.mask_state == "other-object-act") or (self.mask_state == "objects") or (self.mask_state == "one-object") or (self.mask_state == "com") or (self.mask_state == "pusher") or (self.mask_state == "pusher+object") :
                         samples_data_coll.append([samples[self.mask_state_vect] for samples in samples_data['observations']])
-                    elif (self.mask_state == "mix"):
-                        if itr < self.iter_switch:
-                            if samples_data['observations'].shape[0] > self.batch_size:
-                                samples_data_coll.append(samples_data['observations'][0:self.batch_size])
-                            else:
-                                samples_data_coll.append(samples_data['observations'])
-                        else:
-                            samples_data_coll.append([samples[self.mask_state_vect] for samples in samples_data['observations']])
 
-
-
+                    ## Collecting samples when maximizing entropy all over the image
                     elif self.mask_state == 'images-all' or self.mask_state == 'images-estim':
-                        ## TODO changes here
-                        #if samples_data['observations'].shape[0] > 10000:
-
 
                         if samples_data['images'].shape[0] > self.batch_size:
                             samples_data_coll.append(samples_data['images'][0:self.batch_size])
-                        #elif samples_data['observations'].shape[0] > 1000:
 
-                            #samples_data_coll.append(samples_data['observations'][0:-1:5][0:1000])
                         else:
                             samples_data_coll.append(samples_data['images'])
 
+                    ## Collecting samples when maximizing the entropy over the entire state
                     else:
-                        ## TODO changes here
-                        #if samples_data['observations'].shape[0] > 10000:
-
-                        #import IPython
-                        #IPython.embed()
 
                         if samples_data['observations'].shape[0] > self.batch_size:
                             samples_data_coll.append(samples_data['observations'][0:self.batch_size])
-                        #elif samples_data['observations'].shape[0] > 1000:
 
-                            #samples_data_coll.append(samples_data['observations'][0:-1:5][0:1000])
                         else:
                             samples_data_coll.append(samples_data['observations'])
-                    ## Using the learnt representation
-                    #else:
 
-                    #    with self.sess.as_default():
-                    #        with self.graph.as_default():
-                    #            samples_data_coll.append(self.sess.run(self.network._output_for_shared(self.obs_pl, task=0, reuse=tf.AUTO_REUSE),
-                    #                                                                feed_dict={self.obs_pl: samples_data['observations']}))
-
-
-
+                    # Giving the samples to the vae
                     self.args_density_model.obs = samples_data_coll
+
 
                     self.args_density_model.itr = itr
 
-                    
+
 
                     print(np.asarray(samples_data_coll).ndim)
                     if (np.asarray(samples_data_coll).ndim> 1):
 
-                        ## TODO: Temporary: no reinit (no old data test)
-                        ## Let's try to reinitialize everytime
-                        #self.density_model.init_opt()
-                        if self.mask_state == "mix" or self.mask_state == "mix-nn":
-                            if itr < self.iter_switch:
-                                self.density_model_aux.train(self.args_density_model, itr)
-                            else:
-                                self.density_model.train(self.args_density_model, itr)
-                        else:
-                            self.density_model.train(self.args_density_model, itr)
+                        ## Training the vae
+                        self.density_model.train(self.args_density_model, itr)
 
                         print('Density model trained')
 
@@ -365,8 +363,9 @@ class BatchPolopt(RLAlgorithm):
                                   "continue...")
 
 
+                    ## Saving data
                     observations.append(samples_data['observations'])
-                    pickle.dump(observations, open(self.log_dir+'/observations.pkl', 'wb'))
+                    #pickle.dump(observations, open(self.log_dir+'/observations.pkl', 'wb'))
                     rewards_real.append(samples_data['rewards_real'])
 
                     pickle.dump(rewards_real, open(self.log_dir+'/rewards_real.pkl', 'wb'))
@@ -400,57 +399,3 @@ class BatchPolopt(RLAlgorithm):
 
     def optimize_policy(self, itr, samples_data):
         raise NotImplementedError
-
-################################ Pseudo count#################################################
-"""                if self.reward_type == 'pseudo-count':
-                    new_density = copy.copy(self.density_model)
-                    paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, iter_switch=self.iter_switch)
-                    logger.log("Processing samples...")
-                    samples_data = self.process_samples(itr, paths)
-                    logger.log("Logging diagnostics...")
-                    self.log_diagnostics(paths)
-                    print('Training  NEW density model')
-                    if (self.mask_state == "objects"):
-                        self.mask_state_vect = np.zeros(14)
-                        for l in range(14):
-                            self.mask_state_vect[l] = 3 + l
-
-                        self.mask_state_vect = self.mask_state_vect.astype(int)
-                    elif (self.mask_state == "one-object"):
-                        self.mask_state_vect = np.zeros(2)
-                        for l in range(2):
-                            self.mask_state_vect[l] = 3 + l
-                        self.mask_state_vect = self.mask_state_vect.astype(int)
-                    elif (self.mask_state == "com"):
-                        self.mask_state_vect = np.zeros(2)
-                        for l in range(0,2):
-                            self.mask_state_vect[l] =  122 + l
-                        self.mask_state_vect = self.mask_state_vect.astype(int)
-
-
-                    if self.use_old_data == 'no':
-                        samples_data_coll = []
-                    if (self.mask_state == "objects") or (self.mask_state == "one-object") or (self.mask_state == "com"):
-                        samples_data_coll.append([samples[self.mask_state_vect] for samples in samples_data['observations']])
-                    else:
-                        samples_data_coll.append(samples_data['observations'])
-                    self.args_density_model.obs = samples_data_coll
-
-                    self.args_density_model.itr = itr
-
-                    ## Let's try to reinitialize everytime
-                    new_density.init_opt()
-                    new_density.train(self.args_density_model, itr)
-                    print('NEW Density model trained')
-
-                    paths = self.obtain_samples(itr=itr, density_model=self.density_model, reward_type=self.reward_type, name_density_model=self.name_density_model, mask_state=self.mask_state, new_density_model=new_density, old_paths=paths)
-                    logger.log("Processing samples...")
-                    samples_data = self.process_samples(itr, paths)
-                    logger.log("Logging diagnostics...")
-                    self.log_diagnostics(paths)
-                    #print('rewards used', samples_data['rewards'])
-                    ### If we use pseudo-count the policy should updated later
-                    if not self.reward_type == 'pseudo-count':
-                        logger.log("Optimizing policy...")
-                        self.optimize_policy(itr, samples_data)"""
-################################ Pseudo count#################################################

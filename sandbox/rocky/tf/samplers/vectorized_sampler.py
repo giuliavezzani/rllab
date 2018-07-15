@@ -24,6 +24,9 @@ class VectorizedSampler(BaseSampler):
         if n_envs is None:
             n_envs = int(self.algo.batch_size / self.algo.max_path_length)
             n_envs = max(1, min(n_envs, 100))
+
+            ## NOTE: This is for the images, if you go from observations, remove it
+            ## It will go faster
             n_envs = 1
 
 
@@ -32,6 +35,7 @@ class VectorizedSampler(BaseSampler):
         else:
             envs = [pickle.loads(pickle.dumps(self.algo.env)) for _ in range(n_envs)]
 
+            ## This is to adapt the sampler to a gym environment
             if hasattr(envs[0].wrapped_env, 'choice'):
                 for l in range(len(envs)):
                     envs[l].wrapped_env.choice = self.algo.env.wrapped_env.choice
@@ -46,8 +50,6 @@ class VectorizedSampler(BaseSampler):
                 max_path_length=self.algo.max_path_length
             )
 
-            #import IPython
-            #IPython.embed()
         self.env_spec = self.algo.env.spec
 
     def shutdown_worker(self):
@@ -71,8 +73,6 @@ class VectorizedSampler(BaseSampler):
 
         policy = self.algo.policy
 
-        #import IPython
-        #IPython.embed()
         import time
         while n_samples < self.algo.batch_size:
 
@@ -87,6 +87,8 @@ class VectorizedSampler(BaseSampler):
             policy_time += time.time() - t
             t = time.time()
             next_obses, rewards, dones, env_infos = self.vec_env.step(actions)
+            ## NOTE: This is a temporary implementation. We use the images only for computing the bonus
+            ## (if images-all or images-estim). The training is done from observations
             if mask_state == "images-all" or mask_state == "images-estim" :
 
                 if env_type == 'rllab':
@@ -104,6 +106,7 @@ class VectorizedSampler(BaseSampler):
                 scale = density_model.scale
                 decay_entr = density_model.decay_entr
 
+                ## Here are all the same masks we explain in batch_polpt
                 if (mask_state == "objects"):
                     self.mask_state_vect = np.zeros(14)
                     for l in range(14):
@@ -155,15 +158,16 @@ class VectorizedSampler(BaseSampler):
 
                 rewards_real = np.zeros(shape=rewards.shape)
 
-                #import IPython
-                #IPython.embed()
-                #if not mask_state == "all":
-                #    print(self.mask_state_vect)
-
+                ## Here we augment the reward (sparse) with a bonus, computed from vae_conv
+                ## density_model.get_density provide an estimate of -log(p(z)), where z is the variable
+                ## on which we  want to maximize the entropy
                 if name_density_model == 'vae':
+                    ## Noise for the vae
                     curr_noise = np.random.normal(size=(1, density_model.hidden_size))
                     if (mask_state == "one-object-act" or mask_state == "other-object-act" or mask_state == "all-act" or mask_state == "objects" or mask_state == "one-object" or mask_state == "com" or mask_state == "pusher" or mask_state == "pusher+object"):
+                        ## This are the real rewards output by the environment
                         rewards_real= rewards
+                        ## The real rewards are scaled with a scale factor, to encourage to increase the real rewards, one experience
                         rewards = rewards * scale +  [density_model.get_density(next_obs[self.mask_state_vect].reshape(1, next_obs[self.mask_state_vect].shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
                         entropy =  [100 * density_model.get_density(next_obs[self.mask_state_vect].reshape(1, next_obs[self.mask_state_vect].shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
                     elif (mask_state == "mix"):
@@ -176,86 +180,30 @@ class VectorizedSampler(BaseSampler):
 
                             rewards = rewards * scale +  [density_model.get_density(next_obs[self.mask_state_vect].reshape(1, next_obs[self.mask_state_vect].shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
                             entropy = [100 * density_model.get_density(next_obs[self.mask_state_vect].reshape(1, next_obs[self.mask_state_vect].shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
-                    #elif (mask_state == "bottleneck"):
-                    #    rewards_real= rewards
-                    #    rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
-                    else:
-                        rewards_real= rewards
 
-
-                        ##### TODO: Option 1: switch after iter
-                        #if itr < 40:
-                        #    rewards =  rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
-                        #else:
-                        #    rewards = rewards
-
-                        #### TODO: Option 2: scale proportional to the rewards
-                        #if np.linalg.norm(rewards) == 0:
-                        ##    rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
-                        #else:
-                        #    rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses] / (np.linalg.norm(rewards) * scale)
-
-
-                        # TODO Option 0: standard way
-
-                    if  mask_state=="images-all":
-
+                    elif  mask_state=="images-all":
 
                         rewards = rewards * scale + [density_model.get_density(image.reshape(1, image.shape[0], image.shape[1], image.shape[2]), curr_noise) /((itr+1) ** decay_entr) for image in images]
                     elif mask_state=="images-estim" :
-
                         rewards = rewards * scale + [density_model.get_density(image.reshape(1, image.shape[0], image.shape[1], image.shape[2]), curr_noise) /((itr+1) ** decay_entr) for image in images]
-                    #else:
-                    #    rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
+
+                    else:
+                        rewards_real= rewards
+                        rewards = rewards * scale + [density_model.get_density(next_obs.reshape(1, next_obs.shape[0]), curr_noise) /((itr+1) ** decay_entr) for next_obs in next_obses]
 
                 else:
-
                     rewards = [density_model.get_density(next_obs.reshape(1, next_obs.shape[0])) for next_obs in next_obses]
 
-                #print(rewards)
 
             elif reward_type == 'policy_entropy':
+                ## Here we maximize the entropy over the actions
                 rewards_real = np.zeros(shape=rewards.shape)
                 for l in range(len(next_obses)):
                     rewards_real[l]= rewards[l]
                     rewards[l] = rewards[l] * scale -np.log(policy.get_prob(actions[l], agent_infos['mean'][l], agent_infos['log_std'][l]))
 
-            elif reward_type == 'discrete':
-                self._dim_space = 20
-                self._count_space = np.zeros(shape=(self._dim_space+1, self._dim_space+1))
-
-                for l in range(len(next_obses)):
-
-                    for h in range(0, self._dim_space+1):
-                        for i in range(0, self._dim_space+1):
-
-                            if next_obses[l][0] == h and next_obses[l][1] == i:
-                                self._count_space[h,i] += 1
-
-                h_spec = np.zeros(len(next_obses))
-                i_spec = np.zeros(len(next_obses))
-                for h in range(0, self._dim_space+1):
-                    for i in range(0, self._dim_space+1):
-                        for l in range(len(next_obses)):
-                            if  next_obses[l][0] == h and  next_obses[l][1] == i:
-
-                                h_spec[l] = h
-                                i_spec[l] = i
-
-                for l in range(len(next_obses)):
-                    rewards[l] =  -self._count_space[int(h_spec[l]), int(i_spec[l])]/( len(next_obses))
-
-
-            elif reward_type=='pseudo-count' and not new_density_model==None:
-                for l in range(len(next_obses)):
-                    curr_noise = np.random.normal(size=(1, density_model.hidden_size))
-                    ro = np.exp(-density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise))
-                    ro_new = np.exp(-new_density_model.get_density(next_obses[l].reshape(1, next_obses[l].shape[0]), curr_noise))
-                    rewards[l] += (ro_new - ro) / ro * (1 - ro_new)
-
             else:
                 rewards_real = rewards
-
 
             t = time.time()
 
@@ -266,8 +214,6 @@ class VectorizedSampler(BaseSampler):
             if agent_infos is None:
                 agent_infos = [dict() for _ in range(self.vec_env.num_envs)]
 
-            #import IPython
-            #IPython.embed()
             if not (mask_state =='images-all' or mask_state == 'images-estim'):
                 for idx, observation, action, reward, env_info, agent_info, done, r_real in zip(itertools.count(), obses, actions,
                                                                                         rewards, env_infos, agent_infos,
